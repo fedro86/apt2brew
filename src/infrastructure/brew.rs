@@ -110,26 +110,15 @@ pub struct BrewIndex {
 }
 
 impl BrewIndex {
-    /// Fetch formulae + casks from Homebrew API and build the index.
+    /// Fetch formulae from Homebrew API and build the index.
+    /// Casks are macOS-only (.dmg/.app) and not usable on Linux.
     pub async fn fetch() -> Result<Self, BrewError> {
-        let (formulae, casks) = tokio::try_join!(
-            async {
-                reqwest::get("https://formulae.brew.sh/api/formula.json")
-                    .await?
-                    .json::<Vec<BrewFormula>>()
-                    .await
-                    .map_err(BrewError::from)
-            },
-            async {
-                reqwest::get("https://formulae.brew.sh/api/cask.json")
-                    .await?
-                    .json::<Vec<BrewCask>>()
-                    .await
-                    .map_err(BrewError::from)
-            },
-        )?;
+        let formulae: Vec<BrewFormula> = reqwest::get("https://formulae.brew.sh/api/formula.json")
+            .await?
+            .json()
+            .await?;
 
-        Ok(Self::build(&formulae, &casks))
+        Ok(Self::build(&formulae, &[]))
     }
 
     /// Build index from pre-fetched data (for testing).
@@ -296,35 +285,7 @@ mod tests {
         assert!(index.find_match("some-random-pkg").is_none());
     }
 
-    #[test]
-    fn cask_match() {
-        let casks = vec![BrewCask {
-            token: "zoom".into(),
-            old_tokens: vec![],
-            version: Some("6.3.0".into()),
-        }];
-        let index = BrewIndex::build(&[], &casks);
-        let result = index.find_match("zoom");
-        assert_eq!(
-            result,
-            Some(("zoom".into(), "6.3.0".into(), BrewType::Cask))
-        );
-    }
-
-    #[test]
-    fn cask_alias_match() {
-        let casks = vec![BrewCask {
-            token: "google-chrome".into(),
-            old_tokens: vec![],
-            version: Some("130.0".into()),
-        }];
-        let index = BrewIndex::build(&[], &casks);
-        let result = index.find_match("google-chrome-stable");
-        assert_eq!(
-            result,
-            Some(("google-chrome".into(), "130.0".into(), BrewType::Cask))
-        );
-    }
+    // Cask tests removed: casks are macOS-only and not indexed on Linux.
 
     #[test]
     fn fuzzy_strip_bin_suffix() {
@@ -404,7 +365,7 @@ mod tests {
     }
 
     #[test]
-    fn formula_takes_priority_over_cask() {
+    fn formula_match_ignores_cask_data() {
         let formulae = vec![BrewFormula {
             name: "ffmpeg".into(),
             aliases: vec![],
@@ -412,12 +373,7 @@ mod tests {
                 stable: Some("7.0".into()),
             },
         }];
-        let casks = vec![BrewCask {
-            token: "ffmpeg".into(),
-            old_tokens: vec![],
-            version: Some("1.0".into()),
-        }];
-        let index = BrewIndex::build(&formulae, &casks);
+        let index = BrewIndex::from_formulae(&formulae);
         let result = index.find_match("ffmpeg");
         assert_eq!(
             result,
