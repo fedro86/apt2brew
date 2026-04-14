@@ -24,6 +24,7 @@ async fn main() {
         Commands::Migrate { dry_run, yes } => {
             if !dry_run {
                 require_brew();
+                warm_sudo();
             }
 
             let result = scan_packages().await;
@@ -85,6 +86,22 @@ async fn main() {
                 }
             }
         }
+    }
+}
+
+/// Ask for sudo password upfront so it's cached for later apt/snap remove.
+fn warm_sudo() {
+    eprintln!("This operation will need sudo to remove APT/snap packages.");
+    let status = std::process::Command::new("sudo")
+        .args(["-v"])
+        .stdin(std::process::Stdio::inherit())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .status();
+
+    if !status.is_ok_and(|s| s.success()) {
+        eprintln!("Failed to obtain sudo. Aborting.");
+        std::process::exit(1);
     }
 }
 
