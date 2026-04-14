@@ -169,15 +169,43 @@ fn draw_package_list(f: &mut Frame, area: Rect, state: &mut AppState) {
 }
 
 fn draw_footer(f: &mut Frame, area: Rect, state: &AppState) {
-    let help = if state.searching {
-        " Type to search | Enter: apply | Esc: cancel "
+    let keys: Vec<(&str, &str)> = if state.searching {
+        vec![("Type", "search"), ("Enter", "apply"), ("Esc", "cancel")]
     } else {
-        " j/k: move | Space: toggle | a: all | n: none | Tab: filter | /: search | Enter: confirm | q: quit "
+        vec![
+            ("j/k", "move"),
+            ("Space", "toggle"),
+            ("a", "all"),
+            ("n", "none"),
+            ("Tab", "filter"),
+            ("/", "search"),
+            ("Enter", "confirm"),
+            ("q", "quit"),
+        ]
     };
 
-    let footer = Paragraph::new(help)
-        .style(Style::default().fg(Color::DarkGray))
-        .block(Block::default().borders(Borders::ALL));
+    let spans: Vec<Span> = keys
+        .iter()
+        .enumerate()
+        .flat_map(|(i, (key, desc))| {
+            let mut v = vec![
+                Span::styled(
+                    format!(" {key} "),
+                    Style::default()
+                        .fg(Color::Black)
+                        .bg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(format!(" {desc} "), Style::default().fg(Color::White)),
+            ];
+            if i < keys.len() - 1 {
+                v.push(Span::styled(" ", Style::default()));
+            }
+            v
+        })
+        .collect();
+
+    let footer = Paragraph::new(Line::from(spans)).block(Block::default().borders(Borders::ALL));
     f.render_widget(footer, area);
 }
 
