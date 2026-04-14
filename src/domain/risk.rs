@@ -67,6 +67,15 @@ pub fn classify(pkg: &AptPackage, essential_deps: &HashSet<String>) -> RiskLevel
         }
     }
 
+    // Rule 1b: package itself is essential/required
+    if pkg
+        .priority
+        .as_deref()
+        .is_some_and(|p| p == "required" || p == "important" || p == "essential")
+    {
+        return RiskLevel::High;
+    }
+
     // Rule 2: installs daemon files
     if pkg.has_systemd_unit || pkg.has_init_script {
         return RiskLevel::High;
@@ -117,6 +126,14 @@ pub fn classify_reason(pkg: &AptPackage, essential_deps: &HashSet<String>) -> &'
         if pkg.name == *pattern || pkg.name.starts_with(&format!("{pattern}-")) {
             return "system-critical package";
         }
+    }
+
+    if pkg
+        .priority
+        .as_deref()
+        .is_some_and(|p| p == "required" || p == "important" || p == "essential")
+    {
+        return "essential/required package";
     }
 
     if pkg.has_systemd_unit {
@@ -248,6 +265,19 @@ mod tests {
         pkg.has_etc_config = true;
         pkg.has_systemd_unit = true;
         assert_eq!(classify(&pkg, &deps), RiskLevel::High);
+    }
+
+    #[test]
+    fn essential_priority_is_high() {
+        let deps = empty_deps();
+        let mut pkg = make_pkg("ncurses-bin", Some("utils"));
+        pkg.priority = Some("required".to_string());
+        assert_eq!(classify(&pkg, &deps), RiskLevel::High);
+        assert_eq!(classify_reason(&pkg, &deps), "essential/required package");
+
+        let mut pkg2 = make_pkg("some-essential", None);
+        pkg2.priority = Some("essential".to_string());
+        assert_eq!(classify(&pkg2, &deps), RiskLevel::High);
     }
 
     #[test]

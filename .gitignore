@@ -6,6 +6,10 @@ CLAUDE.md
 docs/temp/
 
 
+# Local scripts
+scripts/
+
 # Added by cargo
 
 /target
+.mcp.json

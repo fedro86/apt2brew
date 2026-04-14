@@ -35,7 +35,12 @@ pub fn execute_migration(packages: &[PackageMigration]) {
             .brew_type
             .as_ref()
             .unwrap_or(&crate::domain::package::BrewType::Formula);
-        let result = infra_migrate::brew_install_and_verify(&pkg.name, brew_name, brew_type);
+        let result = infra_migrate::brew_install_and_verify(
+            &pkg.name,
+            brew_name,
+            brew_type,
+            pkg.source.clone(),
+        );
 
         if result.error.is_some() {
             println!("          FAILED: {}", result.error.as_deref().unwrap());
@@ -76,9 +81,16 @@ pub fn execute_migration(packages: &[PackageMigration]) {
         .map(|s| s.as_str())
         .collect();
 
+    if !apt_to_remove.is_empty() || !snap_to_remove.is_empty() {
+        if !infra_migrate::warm_sudo() {
+            eprintln!("Failed to obtain sudo. Skipping package removal.");
+            // Skip to artifact generation
+        }
+    }
+
     if !apt_to_remove.is_empty() {
         println!(
-            "\n  Phase 2a: Removing {} APT packages (requires sudo)...\n",
+            "\n  Phase 2a: Removing {} APT packages...\n",
             apt_to_remove.len()
         );
         match infra_migrate::apt_remove_batch(&apt_to_remove) {

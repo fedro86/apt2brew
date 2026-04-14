@@ -29,6 +29,7 @@ struct ProgressEntry {
     apt_name: String,
     brew_name: String,
     brew_type: crate::domain::package::BrewType,
+    source: crate::domain::package::PackageSource,
     status: PackageStatus,
 }
 
@@ -59,6 +60,7 @@ pub fn run_migration_tui(packages: &[PackageMigration]) -> io::Result<()> {
                 .brew_type
                 .clone()
                 .unwrap_or(crate::domain::package::BrewType::Formula),
+            source: p.source.clone(),
             status: PackageStatus::Pending,
         })
         .collect();
@@ -94,6 +96,7 @@ pub fn run_migration_tui(packages: &[PackageMigration]) -> io::Result<()> {
                         &entries[current].apt_name,
                         &entries[current].brew_name,
                         &entries[current].brew_type,
+                        entries[current].source.clone(),
                     );
 
                     entries[current].status = if result.error.is_some() {
@@ -118,13 +121,21 @@ pub fn run_migration_tui(packages: &[PackageMigration]) -> io::Result<()> {
             }
 
             Phase::AptRemove => {
-                let succeeded: Vec<&str> = results
+                use crate::domain::package::PackageSource;
+
+                let succeeded_apt: Vec<String> = entries
                     .iter()
-                    .filter(|r| r.error.is_none())
-                    .map(|r| r.package.as_str())
+                    .filter(|e| e.status == PackageStatus::Ok && e.source != PackageSource::Snap)
+                    .map(|e| e.apt_name.clone())
                     .collect();
 
-                if succeeded.is_empty() {
+                let succeeded_snap: Vec<String> = entries
+                    .iter()
+                    .filter(|e| e.status == PackageStatus::Ok && e.source == PackageSource::Snap)
+                    .map(|e| e.apt_name.clone())
+                    .collect();
+
+                if succeeded_apt.is_empty() && succeeded_snap.is_empty() {
                     apt_status = Some(Ok(()));
                     phase = Phase::Done;
                     continue;
@@ -134,29 +145,79 @@ pub fn run_migration_tui(packages: &[PackageMigration]) -> io::Result<()> {
                 disable_raw_mode()?;
                 execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
 
-                println!(
-                    "\n  Removing {} packages from APT (requires sudo)...\n",
-                    succeeded.len()
-                );
+                if !infra_migrate::warm_sudo() {
+                    eprintln!("Failed to obtain sudo. Skipping package removal.");
+                    apt_status = Some(Err("sudo authentication failed".to_string()));
 
-                match infra_migrate::apt_remove_batch(&succeeded) {
-                    Ok(()) => {
-                        for r in &mut results {
-                            if r.error.is_none() {
-                                r.apt_removed = true;
+                    enable_raw_mode()?;
+                    execute!(io::stdout(), EnterAlternateScreen)?;
+                    terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
+                    phase = Phase::Done;
+                    continue;
+                }
+
+                let mut any_failure = false;
+
+                if !succeeded_apt.is_empty() {
+                    let apt_refs: Vec<&str> = succeeded_apt.iter().map(|s| s.as_str()).collect();
+                    println!("\n  Removing {} packages from APT...\n", apt_refs.len());
+
+                    match infra_migrate::apt_remove_batch(&apt_refs) {
+                        Ok(()) => {
+                            for r in results.iter_mut() {
+                                if r.error.is_none() && succeeded_apt.contains(&r.package) {
+                                    r.apt_removed = true;
+                                }
+                            }
+                            for entry in entries.iter_mut() {
+                                if entry.status == PackageStatus::Ok
+                                    && entry.source != PackageSource::Snap
+                                {
+                                    entry.status = PackageStatus::AptRemoved;
+                                }
                             }
                         }
-                        for entry in &mut entries {
-                            if entry.status == PackageStatus::Ok {
-                                entry.status = PackageStatus::AptRemoved;
-                            }
+                        Err(e) => {
+                            eprintln!("\n  APT removal failed: {e}");
+                            any_failure = true;
                         }
-                        apt_status = Some(Ok(()));
-                    }
-                    Err(e) => {
-                        apt_status = Some(Err(e.to_string()));
                     }
                 }
+
+                if !succeeded_snap.is_empty() {
+                    let snap_refs: Vec<&str> = succeeded_snap.iter().map(|s| s.as_str()).collect();
+                    println!(
+                        "\n  Removing {} snap packages (requires sudo)...\n",
+                        snap_refs.len()
+                    );
+
+                    match infra_migrate::snap_remove_batch(&snap_refs) {
+                        Ok(()) => {
+                            for r in results.iter_mut() {
+                                if r.error.is_none() && succeeded_snap.contains(&r.package) {
+                                    r.apt_removed = true;
+                                }
+                            }
+                            for entry in entries.iter_mut() {
+                                if entry.status == PackageStatus::Ok
+                                    && entry.source == PackageSource::Snap
+                                {
+                                    entry.status = PackageStatus::AptRemoved;
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("\n  Snap removal failed: {e}");
+                            any_failure = true;
+                        }
+                    }
+                }
+
+                apt_status = if any_failure {
+                    Some(Err("some removals failed".to_string()))
+                } else {
+                    Some(Ok(()))
+                };
 
                 // Re-enter TUI for final summary
                 enable_raw_mode()?;

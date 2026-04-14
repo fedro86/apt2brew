@@ -96,15 +96,41 @@ fn execute_rollback_entries(entries: &[RollbackEntry]) {
         }
     }
 
-    // Phase 2: batch apt install (single sudo)
-    let apt_names: Vec<&str> = entries.iter().map(|e| e.apt_name.as_str()).collect();
-    println!(
-        "\n  Phase 2: Reinstalling {} packages via APT (requires sudo)...\n",
-        apt_names.len()
-    );
+    // Phase 2: reinstall packages (apt and snap separately)
+    let apt_names: Vec<&str> = entries
+        .iter()
+        .filter(|e| !e.is_snap)
+        .map(|e| e.apt_name.as_str())
+        .collect();
+    let snap_names: Vec<&str> = entries
+        .iter()
+        .filter(|e| e.is_snap)
+        .map(|e| e.apt_name.as_str())
+        .collect();
 
-    match rollback::apt_install_batch(&apt_names) {
-        Ok(()) => println!("\n  Rollback complete.\n"),
-        Err(e) => println!("\n  APT reinstall failed: {e}\n"),
+    let mut total_failed = 0;
+
+    if !apt_names.is_empty() {
+        println!(
+            "\n  Phase 2a: Reinstalling {} APT packages (requires sudo)...\n",
+            apt_names.len()
+        );
+        let failed = rollback::apt_install_batch(&apt_names);
+        total_failed += failed.len();
+    }
+
+    if !snap_names.is_empty() {
+        println!(
+            "\n  Phase 2b: Reinstalling {} snap packages (requires sudo)...\n",
+            snap_names.len()
+        );
+        let failed = rollback::snap_install_batch(&snap_names);
+        total_failed += failed.len();
+    }
+
+    if total_failed == 0 {
+        println!("\n  Rollback complete.\n");
+    } else {
+        println!("\n  Rollback done with {total_failed} reinstall errors.\n");
     }
 }

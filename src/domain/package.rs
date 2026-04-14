@@ -75,6 +75,7 @@ impl PackageMigration {
 pub struct MigrationResult {
     pub package: String,
     pub brew_name: String,
+    pub source: PackageSource,
     pub brew_installed: bool,
     pub path_verified: bool,
     pub apt_removed: bool,
@@ -82,10 +83,11 @@ pub struct MigrationResult {
 }
 
 impl MigrationResult {
-    pub fn success(package: &str, brew_name: &str) -> Self {
+    pub fn success(package: &str, brew_name: &str, source: PackageSource) -> Self {
         Self {
             package: package.to_string(),
             brew_name: brew_name.to_string(),
+            source,
             brew_installed: true,
             path_verified: true,
             apt_removed: true,
@@ -93,10 +95,11 @@ impl MigrationResult {
         }
     }
 
-    pub fn failed(package: &str, brew_name: &str, error: String) -> Self {
+    pub fn failed(package: &str, brew_name: &str, source: PackageSource, error: String) -> Self {
         Self {
             package: package.to_string(),
             brew_name: brew_name.to_string(),
+            source,
             brew_installed: false,
             path_verified: false,
             apt_removed: false,

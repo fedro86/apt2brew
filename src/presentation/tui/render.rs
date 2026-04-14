@@ -184,28 +184,8 @@ fn draw_footer(f: &mut Frame, area: Rect, state: &AppState) {
         ]
     };
 
-    let spans: Vec<Span> = keys
-        .iter()
-        .enumerate()
-        .flat_map(|(i, (key, desc))| {
-            let mut v = vec![
-                Span::styled(
-                    format!(" {key} "),
-                    Style::default()
-                        .fg(Color::Black)
-                        .bg(Color::White)
-                        .add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(format!(" {desc} "), Style::default().fg(Color::White)),
-            ];
-            if i < keys.len() - 1 {
-                v.push(Span::styled(" ", Style::default()));
-            }
-            v
-        })
-        .collect();
-
-    let footer = Paragraph::new(Line::from(spans)).block(Block::default().borders(Borders::ALL));
+    let footer = Paragraph::new(super::widgets::key_badge_line(&keys))
+        .block(Block::default().borders(Borders::ALL));
     f.render_widget(footer, area);
 }
 

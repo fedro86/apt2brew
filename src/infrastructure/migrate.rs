@@ -1,4 +1,18 @@
-use crate::domain::package::{BrewType, MigrationResult};
+use crate::domain::package::{BrewType, MigrationResult, PackageSource};
+
+/// Cache sudo credentials right before removal. If already cached, this is a no-op.
+/// Returns false if the user fails to authenticate.
+pub fn warm_sudo() -> bool {
+    eprintln!("This operation will need sudo to remove APT/snap packages.");
+    let status = std::process::Command::new("sudo")
+        .args(["-v"])
+        .stdin(std::process::Stdio::inherit())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .status();
+
+    status.is_ok_and(|s| s.success())
+}
 
 /// Errors from migration operations.
 #[derive(Debug, thiserror::Error)]
@@ -132,12 +146,14 @@ pub fn brew_install_and_verify(
     apt_name: &str,
     brew_name: &str,
     brew_type: &BrewType,
+    source: PackageSource,
 ) -> MigrationResult {
     // Step 1: Install via brew
     if let Err(e) = brew_install(brew_name, brew_type) {
         return MigrationResult {
             package: apt_name.to_string(),
             brew_name: brew_name.to_string(),
+            source,
             brew_installed: false,
             path_verified: false,
             apt_removed: false,
@@ -150,6 +166,7 @@ pub fn brew_install_and_verify(
         return MigrationResult {
             package: apt_name.to_string(),
             brew_name: brew_name.to_string(),
+            source,
             brew_installed: true,
             path_verified: false,
             apt_removed: false,
@@ -162,9 +179,10 @@ pub fn brew_install_and_verify(
     MigrationResult {
         package: apt_name.to_string(),
         brew_name: brew_name.to_string(),
+        source,
         brew_installed: true,
         path_verified: true,
-        apt_removed: false, // will be set by batch apt remove
+        apt_removed: false, // will be set by batch apt/snap remove
         error: None,
     }
 }

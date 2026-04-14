@@ -52,9 +52,17 @@ pub fn write_rollback_script(results: &[MigrationResult]) -> io::Result<PathBuf>
         script.push_str("echo 'Rolling back apt2brew migration...'\n\n");
 
         for r in &successful {
+            let is_snap = r.source == crate::domain::package::PackageSource::Snap;
+            let mgr = if is_snap { "snap" } else { "APT" };
+            let install_cmd = if is_snap {
+                format!("sudo snap install {}", r.package)
+            } else {
+                format!("sudo apt install -y {}", r.package)
+            };
+
             script.push_str(&format!("# Rollback: {}\n", r.package));
-            script.push_str(&format!("echo 'Reinstalling {} via APT...'\n", r.package));
-            script.push_str(&format!("sudo apt install -y {}\n", r.package));
+            script.push_str(&format!("echo 'Reinstalling {} via {mgr}...'\n", r.package));
+            script.push_str(&format!("{install_cmd}\n"));
             script.push_str(&format!(
                 "echo 'Removing {} from Homebrew...'\n",
                 r.brew_name
@@ -90,7 +98,13 @@ pub fn write_log(results: &[MigrationResult]) -> io::Result<PathBuf> {
     log.push_str(&format!("{}\n\n", "=".repeat(50)));
 
     for r in results {
-        let status = if r.error.is_none() { "OK" } else { "FAILED" };
+        let status = if r.error.is_some() {
+            "FAILED"
+        } else if r.apt_removed {
+            "OK"
+        } else {
+            "PARTIAL"
+        };
         log.push_str(&format!(
             "[{status}] {} -> brew:{}\n",
             r.package, r.brew_name
@@ -105,11 +119,17 @@ pub fn write_log(results: &[MigrationResult]) -> io::Result<PathBuf> {
         log.push('\n');
     }
 
-    let ok_count = results.iter().filter(|r| r.error.is_none()).count();
-    let fail_count = results.len() - ok_count;
+    let ok_count = results
+        .iter()
+        .filter(|r| r.error.is_none() && r.apt_removed)
+        .count();
+    let partial_count = results
+        .iter()
+        .filter(|r| r.error.is_none() && !r.apt_removed)
+        .count();
+    let fail_count = results.iter().filter(|r| r.error.is_some()).count();
     log.push_str(&format!(
-        "Summary: {} succeeded, {} failed\n",
-        ok_count, fail_count
+        "Summary: {ok_count} succeeded, {partial_count} partial, {fail_count} failed\n",
     ));
 
     fs::write(&path, &log)?;
@@ -139,17 +159,37 @@ pub fn print_results(results: &[MigrationResult], rollback_path: &Path, log_path
     println!("\n  Migration Results\n");
 
     for r in results {
-        let icon = if r.error.is_none() { "OK" } else { "!!" };
-        println!("  [{icon}] {} -> brew:{}", r.package, r.brew_name);
+        let (icon, suffix) = if r.error.is_some() {
+            ("!!", "")
+        } else if r.apt_removed {
+            ("OK", "")
+        } else {
+            ("~~", " (brew installed, source not removed)")
+        };
+        println!("  [{icon}] {} -> brew:{}{suffix}", r.package, r.brew_name);
         if let Some(err) = &r.error {
             println!("       {err}");
         }
     }
 
-    let ok_count = results.iter().filter(|r| r.error.is_none()).count();
-    let fail_count = results.len() - ok_count;
+    let ok_count = results
+        .iter()
+        .filter(|r| r.error.is_none() && r.apt_removed)
+        .count();
+    let partial_count = results
+        .iter()
+        .filter(|r| r.error.is_none() && !r.apt_removed)
+        .count();
+    let fail_count = results.iter().filter(|r| r.error.is_some()).count();
 
-    println!("\n  {} succeeded, {} failed", ok_count, fail_count);
+    print!("\n  {ok_count} succeeded");
+    if partial_count > 0 {
+        print!(", {partial_count} partial (source not removed)");
+    }
+    if fail_count > 0 {
+        print!(", {fail_count} failed");
+    }
+    println!();
     println!("  Rollback script: {}", rollback_path.display());
     println!("  Log: {}\n", log_path.display());
 }

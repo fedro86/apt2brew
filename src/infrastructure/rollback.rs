@@ -22,6 +22,7 @@ pub enum RollbackError {
 pub struct RollbackEntry {
     pub apt_name: String,
     pub brew_name: String,
+    pub is_snap: bool,
 }
 
 fn base_dir() -> PathBuf {
@@ -52,31 +53,65 @@ pub fn find_rollback_scripts() -> Result<Vec<PathBuf>, RollbackError> {
 }
 
 /// Parse a rollback script to extract package entries.
-/// Looks for pairs of `sudo apt install -y <name>` and `brew uninstall <name>`.
+/// Looks for pairs of install commands (apt or snap) and `brew uninstall <name>`.
 pub fn parse_rollback_script(path: &PathBuf) -> Result<Vec<RollbackEntry>, RollbackError> {
     let content = fs::read_to_string(path)?;
     let mut entries = Vec::new();
-    let mut current_apt: Option<String> = None;
+    let mut current_pkg: Option<(String, bool)> = None; // (name, is_snap)
 
     for line in content.lines() {
         let line = line.trim();
 
         if let Some(rest) = line.strip_prefix("sudo apt install -y ") {
-            current_apt = Some(rest.trim().to_string());
+            current_pkg = Some((rest.trim().to_string(), false));
+        } else if let Some(rest) = line.strip_prefix("sudo snap install ") {
+            current_pkg = Some((rest.trim().to_string(), true));
         }
 
         if let Some(rest) = line.strip_prefix("brew uninstall ") {
             let brew_name = rest.trim_end_matches(" || true").trim().to_string();
-            if let Some(apt_name) = current_apt.take() {
+            if let Some((apt_name, is_snap)) = current_pkg.take() {
                 entries.push(RollbackEntry {
                     apt_name,
                     brew_name,
+                    is_snap,
                 });
             }
         }
     }
 
+    // Fix legacy scripts: check snap aliases for entries marked as apt
+    let snap_aliases = super::aliases::snap_aliases();
+    for entry in &mut entries {
+        if !entry.is_snap && snap_aliases.contains_key(&entry.apt_name) {
+            entry.is_snap = true;
+        }
+    }
+
     Ok(entries)
+}
+
+/// List top-level (user-installed) Homebrew formulae, excluding auto-installed dependencies.
+pub fn brew_list_formulae() -> Vec<String> {
+    brew_list_cmd(&["leaves"])
+}
+
+/// List all installed Homebrew casks (casks have no dependency hierarchy).
+pub fn brew_list_casks() -> Vec<String> {
+    brew_list_cmd(&["list", "--cask", "-1"])
+}
+
+fn brew_list_cmd(args: &[&str]) -> Vec<String> {
+    let output = match std::process::Command::new("brew").args(args).output() {
+        Ok(o) if o.status.success() => o,
+        _ => return Vec::new(),
+    };
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| l.trim().to_string())
+        .collect()
 }
 
 /// Execute rollback for a single brew uninstall (no sudo needed).
@@ -93,31 +128,42 @@ pub fn brew_uninstall(brew_name: &str) -> Result<(), RollbackError> {
     Ok(())
 }
 
-/// Batch reinstall packages via APT in a single sudo call.
-pub fn apt_install_batch(apt_names: &[&str]) -> Result<(), RollbackError> {
-    if apt_names.is_empty() {
-        return Ok(());
+/// Reinstall snap packages one by one. Returns names that failed.
+pub fn snap_install_batch(snap_names: &[&str]) -> Vec<String> {
+    let mut failed = Vec::new();
+    for name in snap_names {
+        let status = std::process::Command::new("sudo")
+            .args(["snap", "install", name])
+            .stdin(std::process::Stdio::inherit())
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit())
+            .status();
+
+        if !status.is_ok_and(|s| s.success()) {
+            eprintln!("  Failed to reinstall snap: {name}");
+            failed.push(name.to_string());
+        }
     }
+    failed
+}
 
-    let mut args = vec!["apt", "install", "-y"];
-    args.extend(apt_names);
+/// Reinstall APT packages one by one. Returns names that failed.
+pub fn apt_install_batch(apt_names: &[&str]) -> Vec<String> {
+    let mut failed = Vec::new();
+    for name in apt_names {
+        let status = std::process::Command::new("sudo")
+            .args(["apt", "install", "-y", name])
+            .stdin(std::process::Stdio::inherit())
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit())
+            .status();
 
-    let status = std::process::Command::new("sudo")
-        .args(&args)
-        .stdin(std::process::Stdio::inherit())
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
-        .status()
-        .map_err(|e| RollbackError::AptInstall(apt_names.join(", "), e.to_string()))?;
-
-    if !status.success() {
-        return Err(RollbackError::AptInstall(
-            apt_names.join(", "),
-            "apt install failed".to_string(),
-        ));
+        if !status.is_ok_and(|s| s.success()) {
+            eprintln!("  Failed to reinstall apt: {name}");
+            failed.push(name.to_string());
+        }
     }
-
-    Ok(())
+    failed
 }
 
 #[cfg(test)]
@@ -156,8 +202,10 @@ brew uninstall bat || true
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].apt_name, "git");
         assert_eq!(entries[0].brew_name, "git");
+        assert!(!entries[0].is_snap);
         assert_eq!(entries[1].apt_name, "bat");
         assert_eq!(entries[1].brew_name, "bat");
+        assert!(!entries[1].is_snap);
     }
 
     #[test]

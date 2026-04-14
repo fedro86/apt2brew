@@ -54,6 +54,18 @@ pub fn snap_aliases() -> AliasMap {
     load_alias_map(include_str!("../../aliases/snap-to-brew.json"))
 }
 
+/// Build reverse map: brew name → apt name (from both apt and snap aliases).
+pub fn brew_to_apt_map() -> HashMap<String, String> {
+    let mut reverse = HashMap::new();
+    for (apt_name, (brew_name, _)) in apt_aliases() {
+        reverse.entry(brew_name).or_insert(apt_name);
+    }
+    for (snap_name, (brew_name, _)) in snap_aliases() {
+        reverse.entry(brew_name).or_insert(snap_name);
+    }
+    reverse
+}
+
 /// Load the cask blocklist (compiled into the binary).
 pub fn cask_blocklist() -> HashSet<String> {
     let json = include_str!("../../aliases/blocklist.json");

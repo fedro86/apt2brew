@@ -20,5 +20,7 @@
   "zsh":               { "brew": "zsh",                  "type": "formula" },
   "fish":              { "brew": "fish",                 "type": "formula" },
   "wl-clipboard":      { "brew": "wl-clipboard",         "type": "formula" },
-  "poppler-utils":     { "brew": "poppler",              "type": "formula" }
+  "poppler-utils":     { "brew": "poppler",              "type": "formula" },
+  "google-cloud-cli":  { "brew": "gcloud-cli",           "type": "formula" },
+  "mongodb-mongosh":   { "brew": "mongosh",              "type": "formula" }
 }

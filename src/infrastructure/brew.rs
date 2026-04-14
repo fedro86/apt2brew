@@ -71,13 +71,6 @@ fn fuzzy_candidates(apt_name: &str) -> Vec<String> {
         candidates.push(without_py.to_string());
     }
 
-    // Strip common vendor prefixes: "mongodb-mongosh" → "mongosh"
-    for prefix in &["mongodb-", "google-", "microsoft-"] {
-        if let Some(rest) = apt_name.strip_prefix(prefix) {
-            candidates.push(rest.to_string());
-        }
-    }
-
     // Version suffix: "python3" → "python@3" (only if name ends with digits)
     if apt_name.chars().last().is_some_and(|c| c.is_ascii_digit()) {
         let alpha_end = apt_name
