@@ -43,10 +43,12 @@ pub fn handle_key(key: KeyCode, state: &mut AppState) -> Option<TuiOutcome> {
         }
 
         KeyCode::Char('a') => {
-            // Select all visible
+            // Select all visible (only those with brew match)
             let visible = state.visible_indices();
             for &idx in &visible {
-                state.packages[idx].is_selected = true;
+                if state.packages[idx].brew_name.is_some() {
+                    state.packages[idx].is_selected = true;
+                }
             }
             None
         }

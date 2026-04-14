@@ -32,8 +32,8 @@ struct ProgressEntry {
 enum Phase {
     SelectScript,
     SelectPackages,
-    BrewUninstall,      // TUI with progress bar
-    AptInstall,         // leaves TUI for sudo
+    BrewUninstall, // TUI with progress bar
+    AptInstall,    // leaves TUI for sudo
     Done(String),
 }
 
@@ -129,9 +129,7 @@ pub fn run_rollback_tui() -> io::Result<()> {
                         let summary = if apt_ok {
                             format!("{ok_count} restored, {failed_count} brew errors")
                         } else {
-                            format!(
-                                "{ok_count} brew removed, but APT reinstall failed"
-                            )
+                            format!("{ok_count} brew removed, but APT reinstall failed")
                         };
 
                         // Re-enter TUI for summary
@@ -176,10 +174,8 @@ pub fn run_rollback_tui() -> io::Result<()> {
                     KeyCode::Enter => {
                         let entries = &state.scripts[state.script_cursor].1;
                         if !entries.is_empty() {
-                            state.selected_entries = entries
-                                .iter()
-                                .map(|e| (e.clone(), true))
-                                .collect();
+                            state.selected_entries =
+                                entries.iter().map(|e| (e.clone(), true)).collect();
                             state.pkg_cursor = 0;
                             state.phase = Phase::SelectPackages;
                         }
@@ -363,11 +359,8 @@ fn draw(f: &mut ratatui::Frame, state: &RollbackState) {
                 })
                 .collect();
 
-            let list = List::new(items).block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(" Packages "),
-            );
+            let list =
+                List::new(items).block(Block::default().borders(Borders::ALL).title(" Packages "));
             f.render_widget(list, chunks[1]);
 
             let footer = Paragraph::new(
@@ -389,9 +382,9 @@ fn draw(f: &mut ratatui::Frame, state: &RollbackState) {
 
             let gauge = Gauge::default()
                 .block(
-                    Block::default().borders(Borders::ALL).title(format!(
-                        " Removing from Homebrew... ({current}/{total}) "
-                    )),
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title(format!(" Removing from Homebrew... ({current}/{total}) ")),
                 )
                 .gauge_style(Style::default().fg(Color::Yellow))
                 .percent(pct);
@@ -471,8 +464,8 @@ fn draw(f: &mut ratatui::Frame, state: &RollbackState) {
                 })
                 .collect();
 
-            let list = List::new(items)
-                .block(Block::default().borders(Borders::ALL).title(" Results "));
+            let list =
+                List::new(items).block(Block::default().borders(Borders::ALL).title(" Results "));
             f.render_widget(list, chunks[1]);
 
             let footer = Paragraph::new(" Press Enter or q to exit ")

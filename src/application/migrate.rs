@@ -1,10 +1,10 @@
-use crate::domain::package::{MigrationResult, PackageMigration};
+use crate::domain::package::{MigrationResult, PackageMigration, PackageSource};
 use crate::infrastructure::filesystem;
 use crate::infrastructure::migrate as infra_migrate;
 
 /// Full migration workflow:
 /// 1. brew install all selected (one by one, with progress)
-/// 2. Single sudo apt remove for all successfully installed (one password prompt)
+/// 2. Batch removal from source package managers (apt and/or snap)
 /// 3. Generate artifacts (Brewfile, rollback script, log)
 pub fn execute_migration(packages: &[PackageMigration]) {
     let selected: Vec<_> = packages
@@ -31,7 +31,11 @@ pub fn execute_migration(packages: &[PackageMigration]) {
             pkg.name
         );
 
-        let result = infra_migrate::brew_install_and_verify(&pkg.name, brew_name);
+        let brew_type = pkg
+            .brew_type
+            .as_ref()
+            .unwrap_or(&crate::domain::package::BrewType::Formula);
+        let result = infra_migrate::brew_install_and_verify(&pkg.name, brew_name, brew_type);
 
         if result.error.is_some() {
             println!("          FAILED: {}", result.error.as_deref().unwrap());
@@ -42,32 +46,61 @@ pub fn execute_migration(packages: &[PackageMigration]) {
         results.push(result);
     }
 
-    // Phase 2: batch apt remove for successful installs
-    let succeeded: Vec<&str> = results
+    // Phase 2: batch removal from source managers
+    // Split successful results by source (APT vs Snap)
+    let succeeded_names: Vec<String> = results
         .iter()
         .filter(|r| r.error.is_none())
-        .map(|r| r.package.as_str())
+        .map(|r| r.package.clone())
         .collect();
 
-    if !succeeded.is_empty() {
-        println!(
-            "\n  Phase 2: Removing {} packages from APT (requires sudo)...\n",
-            succeeded.len()
-        );
+    let apt_to_remove: Vec<&str> = succeeded_names
+        .iter()
+        .filter(|name| {
+            selected
+                .iter()
+                .find(|p| p.name == name.as_str())
+                .is_some_and(|p| !is_snap_package(p))
+        })
+        .map(|s| s.as_str())
+        .collect();
 
-        match infra_migrate::apt_remove_batch(&succeeded) {
+    let snap_to_remove: Vec<&str> = succeeded_names
+        .iter()
+        .filter(|name| {
+            selected
+                .iter()
+                .find(|p| p.name == name.as_str())
+                .is_some_and(|p| is_snap_package(p))
+        })
+        .map(|s| s.as_str())
+        .collect();
+
+    if !apt_to_remove.is_empty() {
+        println!(
+            "\n  Phase 2a: Removing {} APT packages (requires sudo)...\n",
+            apt_to_remove.len()
+        );
+        match infra_migrate::apt_remove_batch(&apt_to_remove) {
             Ok(()) => {
-                for r in &mut results {
-                    if r.error.is_none() {
-                        r.apt_removed = true;
-                    }
-                }
+                mark_removed(&mut results, &apt_to_remove);
                 println!("\n  APT removal complete.");
             }
-            Err(e) => {
-                println!("\n  APT removal failed: {e}");
-                println!("  Brew packages are installed but APT versions were not removed.");
+            Err(e) => println!("\n  APT removal failed: {e}"),
+        }
+    }
+
+    if !snap_to_remove.is_empty() {
+        println!(
+            "\n  Phase 2b: Removing {} snap packages (requires sudo)...\n",
+            snap_to_remove.len()
+        );
+        match infra_migrate::snap_remove_batch(&snap_to_remove) {
+            Ok(()) => {
+                mark_removed(&mut results, &snap_to_remove);
+                println!("\n  Snap removal complete.");
             }
+            Err(e) => println!("\n  Snap removal failed: {e}"),
         }
     }
 
@@ -94,4 +127,16 @@ pub fn execute_migration(packages: &[PackageMigration]) {
     };
 
     filesystem::print_results(&results, &rollback_path, &log_path);
+}
+
+fn is_snap_package(pkg: &PackageMigration) -> bool {
+    pkg.source == PackageSource::Snap
+}
+
+fn mark_removed(results: &mut [MigrationResult], names: &[&str]) {
+    for r in results.iter_mut() {
+        if r.error.is_none() && names.contains(&r.package.as_str()) {
+            r.apt_removed = true;
+        }
+    }
 }

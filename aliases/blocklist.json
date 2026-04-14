@@ -1,0 +1,7 @@
+{
+  "_comment": "Package names that should NOT match casks with the same name (false positives). APT 'dash' is the Debian Almquist Shell, brew cask 'dash' is a macOS documentation app.",
+
+  "cask_blocklist": [
+    "dash"
+  ]
+}

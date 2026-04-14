@@ -1,0 +1,19 @@
+{
+  "_comment": "Snap package name → Homebrew formula or cask. PRs welcome!",
+
+  "code":              { "brew": "visual-studio-code",   "type": "cask" },
+  "firefox":           { "brew": "firefox",              "type": "cask" },
+  "discord":           { "brew": "discord",              "type": "cask" },
+  "slack":             { "brew": "slack",                "type": "cask" },
+  "vlc":               { "brew": "vlc",                  "type": "cask" },
+  "gimp":              { "brew": "gimp",                 "type": "cask" },
+  "thunderbird":       { "brew": "thunderbird",          "type": "cask" },
+  "spotify":           { "brew": "spotify",              "type": "cask" },
+  "telegram-desktop":  { "brew": "telegram",             "type": "cask" },
+  "signal-desktop":    { "brew": "signal",               "type": "cask" },
+  "obs-studio":        { "brew": "obs",                  "type": "cask" },
+  "chromium":          { "brew": "chromium",             "type": "cask" },
+  "brave":             { "brew": "brave-browser",        "type": "cask" },
+  "astral-uv":         { "brew": "uv",                   "type": "formula" },
+  "termius-app":       { "brew": "termius",              "type": "cask" }
+}

@@ -16,12 +16,15 @@ Obiettivo: scansione funzionante con output a terminale.
 
 Obiettivo: classificazione automatica del rischio.
 
-- [x] Implementare RiskEngine con euristiche di classificazione (5 regole in cascata)
-- [x] Lista hardcoded di pacchetti system-critical (~45 pattern)
-- [x] Rilevamento daemon (file in `/etc/init.d/`, unit systemd via `dpkg -L`)
+- [x] Risk Engine euristico (8 regole in cascata: systemd, sbin, /etc/, lib*, reverse deps, essential deps, sezioni dpkg)
+- [x] Safety-net minimale (~30 pacchetti non rilevabili da euristiche: coreutils, POSIX, crypto, toolchain)
+- [x] Rilevamento daemon (unit systemd, init.d scripts via `dpkg -L`)
+- [x] Analisi file installati (sbin, /etc/ config) via `dpkg -L`
 - [x] Analisi dipendenze inverse da pacchetti essential/required
+- [x] Conteggio reverse dependencies (threshold >= 5 → High)
 - [x] Pre-selezione automatica basata su RiskLevel
 - [x] Subcomando `apt2brew scan` con output formattato (migrabile / non-migrabile / non-trovato)
+- [x] Colonna Brew Version per confronto versioni APT vs Brew
 - [x] Reason leggibile per ogni classificazione di rischio
 
 ## Fase 3 — TUI
@@ -41,11 +44,13 @@ Obiettivo: interfaccia interattiva per la selezione.
 Obiettivo: esecuzione sicura della migrazione.
 
 - [x] Generazione MigrationPlan da selezione utente (TUI o --yes)
-- [x] Dry-run di default (stampa cosa farebbe senza eseguire)
-- [x] Flag `--execute` per esecuzione reale
-- [x] Installazione via `brew install` con progress per pacchetto
-- [x] Verifica PATH: il binario brew è raggiungibile prima di rimuovere da APT
-- [x] Rimozione da APT solo dopo verifica riuscita (sudo apt remove)
+- [x] `--dry-run` per modalità non-interattiva di preview
+- [x] Workflow interattivo: TUI selezione → conferma → esecuzione immediata
+- [x] TUI con progress bar live durante brew install
+- [x] Verifica installazione via `brew list` (non PATH — nomi binari diversi dai nomi formula)
+- [x] Rimozione batch da APT con singolo `sudo apt remove -y` (una sola password)
+- [x] Rimozione batch da Snap con `sudo snap remove`
+- [x] Supporto `brew install --cask` per applicazioni GUI
 - [x] Generazione `~/Brewfile` con i pacchetti migrati
 - [x] Generazione rollback script (`~/.apt2brew/rollback-<timestamp>.sh`)
 - [x] Logging operazioni in `~/.apt2brew/logs/`
@@ -55,11 +60,13 @@ Obiettivo: esecuzione sicura della migrazione.
 
 Obiettivo: possibilità di annullare la migrazione.
 
-- [x] Subcomando `apt2brew rollback` che trova e esegue lo script più recente
+- [x] Subcomando `apt2brew rollback` con TUI: selezione script → selezione pacchetti → progress bar
 - [x] Rollback selettivo: `--package <name>` per singolo pacchetto
 - [x] Conferma interattiva prima dell'esecuzione (skip con `--yes`)
-- [x] Parsing rollback script per estrarre le entry (apt install + brew uninstall)
+- [x] Batch `brew uninstall` + singolo `sudo apt install -y` (una sola password)
+- [x] Parsing rollback script per estrarre le entry
 - [x] Test per il parser dei rollback script
+- [x] Check prerequisito Homebrew con istruzioni shell-specific (bash/zsh/fish) per PATH setup
 
 ## Fase 6 — Polish & Distribution
 
@@ -73,10 +80,19 @@ Obiettivo: pronto per la distribuzione pubblica.
 - [ ] Pubblicazione su crates.io (`cargo install apt2brew`)
 - [ ] README completo con GIF demo, istruzioni installazione, esempi
 
-## Fase 7 — Future (Post-release)
+## Fase 7 — Matching & Sources (completata)
 
-- [ ] Fuzzy matching nomi APT → Brew (es. `fd-find` → `fd`)
-- [ ] Supporto cask (applicazioni GUI)
+- [x] Fuzzy matching nomi APT → Brew (strip suffissi -dev/-bin/-utils, prefisso lib, python3-, vendor prefix, version suffix)
+- [x] Supporto cask (fetch parallelo formulae + cask API, `brew install --cask`)
+- [x] Cask blocklist per false positive (es. `dash` APT ≠ Dash macOS)
+- [x] Scansione pacchetti Snap (`snap list`, filtraggio system snap)
+- [x] Alias esternalizzati in file JSON (`aliases/apt-to-brew.json`, `snap-to-brew.json`, `blocklist.json`) — PR-friendly
+- [x] Alias snap-specifici (es. `code` → `visual-studio-code`, `astral-uv` → `uv`)
+
+## Fase 8 — Future (Post-release)
+
 - [ ] Configurazione utente via file TOML (`~/.config/apt2brew/config.toml`)
 - [ ] Plugin system per regole di rischio custom
 - [ ] PPA di distribuzione per apt (`sudo add-apt-repository ppa:...`)
+- [ ] Supporto Flatpak come source aggiuntiva
+- [ ] Cache locale dell'API Homebrew (evita re-fetch ad ogni scan)

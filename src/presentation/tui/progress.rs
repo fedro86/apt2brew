@@ -28,6 +28,7 @@ enum PackageStatus {
 struct ProgressEntry {
     apt_name: String,
     brew_name: String,
+    brew_type: crate::domain::package::BrewType,
     status: PackageStatus,
 }
 
@@ -54,6 +55,10 @@ pub fn run_migration_tui(packages: &[PackageMigration]) -> io::Result<()> {
         .map(|p| ProgressEntry {
             apt_name: p.name.clone(),
             brew_name: p.brew_name.clone().unwrap(),
+            brew_type: p
+                .brew_type
+                .clone()
+                .unwrap_or(crate::domain::package::BrewType::Formula),
             status: PackageStatus::Pending,
         })
         .collect();
@@ -88,6 +93,7 @@ pub fn run_migration_tui(packages: &[PackageMigration]) -> io::Result<()> {
                     let result = infra_migrate::brew_install_and_verify(
                         &entries[current].apt_name,
                         &entries[current].brew_name,
+                        &entries[current].brew_type,
                     );
 
                     entries[current].status = if result.error.is_some() {

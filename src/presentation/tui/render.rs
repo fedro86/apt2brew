@@ -77,6 +77,32 @@ fn draw_package_list(f: &mut Frame, area: Rect, state: &mut AppState) {
             let pkg = &state.packages[pkg_idx];
             let reason = state.risk_reasons[pkg_idx];
 
+            let has_match = pkg.brew_name.is_some();
+            let brew_display = pkg.brew_name.as_deref().unwrap_or("-");
+
+            let is_cursor = display_idx == state.cursor;
+
+            // No match → entire line is dim gray, not selectable
+            if !has_match {
+                let dim = Style::default().fg(Color::DarkGray);
+                let line_style = if is_cursor {
+                    dim.bg(Color::DarkGray).add_modifier(Modifier::BOLD)
+                } else {
+                    dim
+                };
+
+                let line = Line::from(vec![
+                    Span::styled("     ", dim),
+                    Span::styled(format!("{:<26}", truncate(&pkg.name, 25)), line_style),
+                    Span::styled(format!("{:<16}", truncate(&pkg.apt_version, 15)), dim),
+                    Span::styled(format!("{:<16}", "-"), dim),
+                    Span::styled(format!("{:<6}", "N/A"), dim),
+                    Span::styled(format!("  {reason}"), dim),
+                ]);
+
+                return ListItem::new(line);
+            }
+
             let checkbox = if pkg.is_selected { "[x]" } else { "[ ]" };
 
             let risk_style = match pkg.risk {
@@ -84,9 +110,6 @@ fn draw_package_list(f: &mut Frame, area: Rect, state: &mut AppState) {
                 RiskLevel::High => Style::default().fg(Color::Red),
             };
 
-            let brew_display = pkg.brew_name.as_deref().unwrap_or("-");
-
-            let is_cursor = display_idx == state.cursor;
             let line_style = if is_cursor {
                 Style::default()
                     .bg(Color::DarkGray)

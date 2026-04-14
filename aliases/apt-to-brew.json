@@ -1,0 +1,32 @@
+{
+  "_comment": "APT package name → Homebrew formula or cask. PRs welcome!",
+
+  "fd-find":           { "brew": "fd",                   "type": "formula" },
+  "ripgrep":           { "brew": "ripgrep",              "type": "formula" },
+  "bat":               { "brew": "bat",                  "type": "formula" },
+  "neovim":            { "brew": "neovim",               "type": "formula" },
+  "python3":           { "brew": "python@3",             "type": "formula" },
+  "python3-pip":       { "brew": "python@3",             "type": "formula" },
+  "python3-dev":       { "brew": "python@3",             "type": "formula" },
+  "nodejs":            { "brew": "node",                 "type": "formula" },
+  "golang":            { "brew": "go",                   "type": "formula" },
+  "golang-go":         { "brew": "go",                   "type": "formula" },
+  "clang":             { "brew": "llvm",                 "type": "formula" },
+  "g++":               { "brew": "gcc",                  "type": "formula" },
+  "silversearcher-ag": { "brew": "the_silver_searcher",  "type": "formula" },
+  "ncdu":              { "brew": "ncdu",                 "type": "formula" },
+  "httpie":            { "brew": "httpie",               "type": "formula" },
+  "tmux":              { "brew": "tmux",                 "type": "formula" },
+  "zsh":               { "brew": "zsh",                  "type": "formula" },
+  "fish":              { "brew": "fish",                 "type": "formula" },
+  "wl-clipboard":      { "brew": "wl-clipboard",         "type": "formula" },
+  "poppler-utils":     { "brew": "poppler",              "type": "formula" },
+
+  "google-chrome-stable":   { "brew": "google-chrome",   "type": "cask" },
+  "microsoft-edge-stable":  { "brew": "microsoft-edge",  "type": "cask" },
+  "keepassxc":              { "brew": "keepassxc",        "type": "cask" },
+  "obs-studio":             { "brew": "obs",              "type": "cask" },
+  "balena-etcher":          { "brew": "balenaetcher",     "type": "cask" },
+  "wine":                   { "brew": "wine-stable",      "type": "cask" },
+  "google-cloud-cli":        { "brew": "gcloud-cli",       "type": "cask" }
+}

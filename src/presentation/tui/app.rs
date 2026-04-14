@@ -112,7 +112,10 @@ impl AppState {
     pub fn toggle_selected(&mut self) {
         let visible = self.visible_indices();
         if let Some(&idx) = visible.get(self.cursor) {
-            self.packages[idx].is_selected = !self.packages[idx].is_selected;
+            // Only allow toggle if package has a brew match
+            if self.packages[idx].brew_name.is_some() {
+                self.packages[idx].is_selected = !self.packages[idx].is_selected;
+            }
         }
     }
 

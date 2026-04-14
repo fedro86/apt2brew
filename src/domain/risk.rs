@@ -92,10 +92,9 @@ pub fn classify(pkg: &AptPackage, essential_deps: &HashSet<String>) -> RiskLevel
         return RiskLevel::High;
     }
 
-    // Rule 7: installs config in /etc/
-    if pkg.has_etc_config {
-        return RiskLevel::High;
-    }
+    // Rule 7: /etc/ config is only a risk when combined with another signal.
+    // Standalone /etc/ files (bash completions, font config, apt sources) are harmless.
+    // Combined cases are already caught by rules 2-6 above.
 
     // Rule 8: system-level section
     if let Some(section) = &pkg.section {
@@ -138,10 +137,6 @@ pub fn classify_reason(pkg: &AptPackage, essential_deps: &HashSet<String>) -> &'
     if essential_deps.contains(&pkg.name) {
         return "required by essential package";
     }
-    if pkg.has_etc_config {
-        return "has system config in /etc/";
-    }
-
     if let Some(section) = &pkg.section {
         let s = section.to_lowercase();
         if matches!(
@@ -237,12 +232,22 @@ mod tests {
     }
 
     #[test]
-    fn etc_config_is_high() {
+    fn etc_config_alone_is_low() {
+        // /etc/ config alone is not a risk signal (bash completions, font config, etc.)
         let deps = empty_deps();
         let mut pkg = make_pkg("some-config-tool", None);
         pkg.has_etc_config = true;
+        assert_eq!(classify(&pkg, &deps), RiskLevel::Low);
+    }
+
+    #[test]
+    fn etc_config_with_systemd_is_high() {
+        // /etc/ config + systemd → still caught by systemd rule
+        let deps = empty_deps();
+        let mut pkg = make_pkg("some-daemon", None);
+        pkg.has_etc_config = true;
+        pkg.has_systemd_unit = true;
         assert_eq!(classify(&pkg, &deps), RiskLevel::High);
-        assert_eq!(classify_reason(&pkg, &deps), "has system config in /etc/");
     }
 
     #[test]

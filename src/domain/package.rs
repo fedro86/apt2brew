@@ -9,11 +9,12 @@ pub enum RiskLevel {
     High,
 }
 
-/// How a package was installed via APT.
+/// Which package manager installed this package.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageSource {
     Manual,
     Automatic,
+    Snap,
 }
 
 /// A single APT package as read from dpkg.
@@ -34,6 +35,13 @@ pub struct AptPackage {
     pub reverse_dep_count: usize,
 }
 
+/// Whether a brew match is a formula or a cask.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BrewType {
+    Formula,
+    Cask,
+}
+
 /// A package evaluated for migration from APT to Homebrew.
 #[derive(Debug, Clone)]
 pub struct PackageMigration {
@@ -41,6 +49,8 @@ pub struct PackageMigration {
     pub apt_version: String,
     pub brew_name: Option<String>,
     pub brew_version: Option<String>,
+    pub brew_type: Option<BrewType>,
+    pub source: PackageSource,
     pub risk: RiskLevel,
     pub is_selected: bool,
 }
@@ -52,6 +62,8 @@ impl PackageMigration {
             apt_version: apt.version.clone(),
             brew_name: None,
             brew_version: None,
+            brew_type: None,
+            source: apt.source.clone(),
             risk: RiskLevel::Low,
             is_selected: false,
         }
