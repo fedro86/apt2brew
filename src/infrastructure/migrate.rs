@@ -28,13 +28,31 @@ pub fn brew_install(brew_name: &str, brew_type: &BrewType) -> Result<(), Migrate
         .map_err(|e| MigrateError::BrewInstall(brew_name.to_string(), e.to_string()))?;
 
     if !output.status.success() {
-        return Err(MigrateError::BrewInstall(
-            brew_name.to_string(),
-            String::from_utf8_lossy(&output.stderr).to_string(),
-        ));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let reason = extract_brew_error(&stderr);
+        return Err(MigrateError::BrewInstall(brew_name.to_string(), reason));
     }
 
     Ok(())
+}
+
+/// Extract a clean error message from brew's verbose stderr output.
+fn extract_brew_error(stderr: &str) -> String {
+    // Look for "Error:" line first
+    for line in stderr.lines() {
+        let trimmed = line.trim();
+        if let Some(msg) = trimmed.strip_prefix("Error:") {
+            return msg.trim().to_string();
+        }
+    }
+    // Fallback: last non-empty line
+    stderr
+        .lines()
+        .rev()
+        .find(|l| !l.trim().is_empty())
+        .unwrap_or("unknown error")
+        .trim()
+        .to_string()
 }
 
 /// Verify that brew successfully installed the formula/cask.
