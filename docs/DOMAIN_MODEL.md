@@ -4,90 +4,90 @@
 
 ### PackageMigration
 
-Rappresenta un singolo pacchetto candidato alla migrazione.
+Represents a single package candidate for migration.
 
 ```
 PackageMigration
-├── name: String              # Nome pacchetto APT (es. "git", "neovim")
-├── apt_version: String       # Versione installata via APT
-├── brew_name: Option<String> # Nome corrispondente su Homebrew (None se non trovato)
-├── brew_version: Option<String> # Versione disponibile su Homebrew
-├── risk: RiskLevel           # Classificazione di rischio
-├── is_selected: bool         # Selezionato per la migrazione (default da RiskLevel)
-└── source: PackageSource     # Come è stato installato (manual, dependency, auto)
+├── name: String              # APT package name (e.g., "git", "neovim")
+├── apt_version: String       # Version installed via APT
+├── brew_name: Option<String> # Corresponding Homebrew name (None if not found)
+├── brew_version: Option<String> # Version available on Homebrew
+├── risk: RiskLevel           # Risk classification
+├── is_selected: bool         # Selected for migration (default based on RiskLevel)
+└── source: PackageSource     # How it was installed (manual, dependency, auto)
 ```
 
 ### RiskLevel
 
-Classificazione binaria del rischio di migrazione.
+Binary risk classification for migration.
 
 ```
 RiskLevel
-├── Low   — User-space: tool CLI, runtime, librerie di sviluppo
-│           Esempi: git, neovim, python3, htop, bat, eza, fd-find
-│           → Pre-selezionato per la migrazione
+├── Low   — User-space: CLI tools, runtimes, development libraries
+│           Examples: git, neovim, python3, htop, bat, eza, fd-find
+│           → Pre-selected for migration
 │
-└── High  — System-space: daemon, driver, networking, kernel-related
-            Esempi: docker-ce, nvidia-driver, postgresql, openssh-server, ufw
-            → Deselezionato, richiede conferma esplicita
+└── High  — System-space: daemons, drivers, networking, kernel-related
+            Examples: docker-ce, nvidia-driver, postgresql, openssh-server, ufw
+            → Deselected, requires explicit confirmation
 ```
 
 ### MigrationPlan
 
-Raccolta delle decisioni prese dall'utente prima dell'esecuzione.
+Collection of decisions made by the user before execution.
 
 ```
 MigrationPlan
-├── packages: Vec<PackageMigration>   # Tutti i pacchetti analizzati
-├── selected: Vec<&PackageMigration>  # Solo quelli marcati is_selected
-├── timestamp: DateTime               # Quando è stato generato il piano
-└── dry_run: bool                     # Se true, nessuna modifica al sistema
+├── packages: Vec<PackageMigration>   # All analyzed packages
+├── selected: Vec<&PackageMigration>  # Only those marked is_selected
+├── timestamp: DateTime               # When the plan was generated
+└── dry_run: bool                     # If true, no system modifications
 ```
 
 ### MigrationResult
 
-Esito dell'esecuzione per singolo pacchetto.
+Execution outcome for a single package.
 
 ```
 MigrationResult
 ├── package: String
 ├── brew_installed: bool
 ├── apt_removed: bool
-├── path_verified: bool        # Il binario brew è prioritario nel $PATH
+├── path_verified: bool        # The brew binary takes priority in $PATH
 └── error: Option<String>
 ```
 
-## Regole di classificazione (Risk Engine)
+## Classification Rules (Risk Engine)
 
-Il Risk Engine applica euristiche in cascata:
+The Risk Engine applies heuristics in cascade:
 
 ```
-1. PACKAGE è in SYSTEM_CRITICAL_LIST?      → High
-   (lista hardcoded: systemd, grub, linux-*, network-manager, ufw, iptables...)
+1. Is PACKAGE in SYSTEM_CRITICAL_LIST?          → High
+   (hardcoded list: systemd, grub, linux-*, network-manager, ufw, iptables...)
 
-2. PACKAGE ha file in /etc/init.d o unit systemd? → High
-   (indica un daemon di sistema)
+2. Does PACKAGE have files in /etc/init.d or systemd units? → High
+   (indicates a system daemon)
 
-3. PACKAGE ha dipendenze inverse da pacchetti essential? → High
+3. Does PACKAGE have reverse dependencies from essential packages? → High
 
-4. PACKAGE è nella sezione "libs" o "kernel"?  → High
+4. Is PACKAGE in the "libs" or "kernel" section? → High
 
-5. Default                                      → Low
+5. Default                                       → Low
 ```
 
-## Flusso dati
+## Data Flow
 
 ```
 dpkg status DB ──▶ AptScanner ──▶ Vec<AptPackage>
                                         │
                                         ▼
-Homebrew API ────▶ BrewMatcher ──▶ Vec<PackageMigration> (con brew_name popolato)
+Homebrew API ────▶ BrewMatcher ──▶ Vec<PackageMigration> (with brew_name populated)
                                         │
                                         ▼
-                   RiskEngine  ──▶ Vec<PackageMigration> (con risk classificato)
+                   RiskEngine  ──▶ Vec<PackageMigration> (with risk classified)
                                         │
                                         ▼
-                   TUI         ──▶ Vec<PackageMigration> (con is_selected aggiornato)
+                   TUI         ──▶ Vec<PackageMigration> (with is_selected updated)
                                         │
                                         ▼
                    MigrationPlan ──▶ Migrator ──▶ Vec<MigrationResult>
@@ -96,10 +96,10 @@ Homebrew API ────▶ BrewMatcher ──▶ Vec<PackageMigration> (con br
                                                   Brewfile + Rollback Script
 ```
 
-## Invarianti
+## Invariants
 
-1. **Nessun pacchetto `essential` viene mai proposto per la migrazione**
-2. **Nessuna rimozione APT senza installazione brew verificata** — il binario deve essere raggiungibile nel PATH prima di rimuovere la versione APT
-3. **Dry-run è il comportamento default** — la migrazione effettiva richiede `--execute`
-4. **Ogni migrazione produce un rollback script** — prima di qualsiasi modifica
-5. **I pacchetti High-risk non vengono mai pre-selezionati** — l'utente deve selezionarli esplicitamente
+1. **No `essential` package is ever proposed for migration**
+2. **No APT removal without verified brew installation** — the binary must be reachable in PATH before removing the APT version
+3. **Dry-run is the default behavior** — actual migration requires `--execute`
+4. **Every migration produces a rollback script** — before any modification
+5. **High-risk packages are never pre-selected** — the user must select them explicitly

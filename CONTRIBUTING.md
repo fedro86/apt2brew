@@ -1,14 +1,14 @@
 # Contributing to apt2brew
 
-## Setup ambiente di sviluppo
+## Development Setup
 
-### Prerequisiti
+### Prerequisites
 
 - Rust toolchain (stable) via [rustup](https://rustup.rs/)
-- Homebrew for Linux installato
-- Sistema Debian/Ubuntu (o derivata) per testare con APT reale
+- Homebrew for Linux installed
+- Debian/Ubuntu system (or derivative) to test with real APT
 
-### Primo setup
+### First-time setup
 
 ```bash
 git clone https://github.com/fedro86/apt2brew.git
@@ -17,57 +17,57 @@ cargo build
 cargo test
 ```
 
-### Comandi utili
+### Useful commands
 
 ```bash
-cargo build              # Build debug
-cargo build --release    # Build release
-cargo test               # Esegui test suite
+cargo build              # Debug build
+cargo build --release    # Release build
+cargo test               # Run test suite
 cargo clippy             # Linting
-cargo fmt                # Formattazione codice
-cargo deb                # Genera pacchetto .deb (richiede cargo-deb)
+cargo fmt                # Code formatting
+cargo deb                # Generate .deb package (requires cargo-deb)
 ```
 
 ## Coding Standards
 
-### Stile
+### Style
 
-- **Formattazione**: `cargo fmt` (rustfmt defaults)
-- **Linting**: `cargo clippy` con zero warning
-- **Nessun `unsafe`**
-- **Nessun `.unwrap()` in produzione** — usa `?` operator con errori tipizzati via `thiserror`
+- **Formatting**: `cargo fmt` (rustfmt defaults)
+- **Linting**: `cargo clippy` with zero warnings
+- **No `unsafe`**
+- **No `.unwrap()` in production** — use `?` operator with typed errors via `thiserror`
 
-### Architettura
+### Architecture
 
-Il progetto segue domain-driven design con 4 layer:
+The project follows domain-driven design with 4 layers:
 
-| Layer              | Può dipendere da          | NON può dipendere da      |
-|--------------------|---------------------------|---------------------------|
-| `domain/`          | Nulla (pura logica)       | infrastructure, presentation |
-| `application/`     | domain                    | infrastructure (solo via trait), presentation |
-| `infrastructure/`  | domain, crate esterni     | presentation              |
-| `presentation/`    | domain, application       | infrastructure direttamente |
+| Layer              | May depend on             | Must NOT depend on          |
+|--------------------|---------------------------|-----------------------------|
+| `domain/`          | Nothing (pure logic)      | infrastructure, presentation |
+| `application/`     | domain                    | infrastructure (only via trait), presentation |
+| `infrastructure/`  | domain, external crates   | presentation                |
+| `presentation/`    | domain, application       | infrastructure directly     |
 
-### Commit
+### Commits
 
-- Messaggi in inglese, concisi, al presente ("add scan command", non "added scan command")
-- Un commit per modifica logica
+- Messages in English, concise, present tense ("add scan command", not "added scan command")
+- One commit per logical change
 
-### Test
+### Tests
 
-- Ogni feature ha almeno un test
-- Unit test in `#[cfg(test)] mod tests` nello stesso file
-- Integration test in `tests/`
-- Fixture in `tests/fixtures/`
+- Every feature has at least one test
+- Unit tests in `#[cfg(test)] mod tests` in the same file
+- Integration tests in `tests/`
+- Fixtures in `tests/fixtures/`
 
 ## Branching
 
-- `main` — branch stabile, sempre buildabile
-- `feature/<nome>` — feature in sviluppo
-- `fix/<nome>` — bug fix
+- `main` — stable branch, always buildable
+- `feature/<name>` — feature development
+- `fix/<name>` — bug fixes
 
-## Pull Request
+## Pull Requests
 
-- Titolo breve e descrittivo
-- Descrizione con contesto e test plan
-- `cargo test` e `cargo clippy` devono passare
+- Short, descriptive title
+- Description with context and test plan
+- `cargo test` and `cargo clippy` must pass

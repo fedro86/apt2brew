@@ -1,40 +1,40 @@
 # Code Review Checklist — apt2brew
 
-## Safety (Priorità massima)
+## Safety (Highest Priority)
 
-- [ ] Nessun pacchetto `essential` o `required` viene toccato
-- [ ] La rimozione APT avviene SOLO dopo verifica che il binario brew è nel PATH
-- [ ] Dry-run è il default; `--execute` è richiesto esplicitamente
-- [ ] Un rollback script viene generato PRIMA di qualsiasi modifica
-- [ ] I comandi di sistema (`apt remove`, `brew install`) non usano `--force` o flag pericolosi
-- [ ] Nessun `sudo` hardcoded — la rimozione APT richiede privilegi e l'utente ne è informato
+- [ ] No `essential` or `required` package is touched
+- [ ] APT removal happens ONLY after verifying the brew binary is in PATH
+- [ ] Dry-run is the default; `--execute` is explicitly required
+- [ ] A rollback script is generated BEFORE any modification
+- [ ] System commands (`apt remove`, `brew install`) don't use `--force` or dangerous flags
+- [ ] No hardcoded `sudo` — APT removal requires privileges and the user is informed
 
 ## Correctness
 
-- [ ] I tipi di dominio (`RiskLevel`, `PackageMigration`) sono usati correttamente
-- [ ] I match APT → Brew sono verificati (non solo per nome ma anche per funzionalità)
-- [ ] Gli errori di rete (API Homebrew) sono gestiti con retry o fallback graceful
-- [ ] Il parsing del database dpkg gestisce edge case (pacchetti rimossi ma non purgati, virtual packages)
+- [ ] Domain types (`RiskLevel`, `PackageMigration`) are used correctly
+- [ ] APT → Brew matches are verified (not just by name but also by functionality)
+- [ ] Network errors (Homebrew API) are handled with retry or graceful fallback
+- [ ] dpkg database parsing handles edge cases (removed but not purged packages, virtual packages)
 
 ## Rust Quality
 
-- [ ] `cargo clippy` passa senza warning
-- [ ] `cargo test` verde
-- [ ] Error handling con `thiserror` e `?` operator, no `.unwrap()` in produzione
-- [ ] Nessun `unsafe`
-- [ ] Tipi pubblici hanno documentazione (`///`)
+- [ ] `cargo clippy` passes with no warnings
+- [ ] `cargo test` green
+- [ ] Error handling with `thiserror` and `?` operator, no `.unwrap()` in production
+- [ ] No `unsafe`
+- [ ] Public types have documentation (`///`)
 
 ## UX
 
-- [ ] I messaggi di errore sono utili e suggeriscono un'azione
-- [ ] La TUI è navigabile solo con tastiera
-- [ ] Il riepilogo pre-esecuzione è chiaro e completo
-- [ ] `--help` è informativo per ogni subcomando
-- [ ] Output non-interattivo (piped) è parsabile (no colori, no TUI)
+- [ ] Error messages are helpful and suggest an action
+- [ ] The TUI is navigable using keyboard only
+- [ ] The pre-execution summary is clear and complete
+- [ ] `--help` is informative for each subcommand
+- [ ] Non-interactive output (piped) is parsable (no colors, no TUI)
 
 ## Distribution
 
-- [ ] `cargo-deb` genera un .deb valido
-- [ ] Il binario si installa in `/usr/bin/apt2brew`
-- [ ] Shell completions e man page sono inclusi nel .deb
-- [ ] La versione in `Cargo.toml` è aggiornata
+- [ ] `cargo-deb` generates a valid .deb
+- [ ] The binary installs to `/usr/bin/apt2brew`
+- [ ] Shell completions and man page are included in the .deb
+- [ ] The version in `Cargo.toml` is up to date

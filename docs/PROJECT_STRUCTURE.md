@@ -2,54 +2,54 @@
 
 ```
 apt2brew/
-├── Cargo.toml                 # Manifest con metadata per cargo-deb
+├── Cargo.toml                 # Manifest with cargo-deb metadata
 ├── Cargo.lock
 ├── README.md
 ├── LICENSE
 ├── CONTRIBUTING.md
 │
 ├── src/
-│   ├── main.rs                # Entry point, setup CLI con clap
+│   ├── main.rs                # Entry point, CLI setup with clap
 │   │
-│   ├── domain/                # Core business logic, zero dipendenze esterne
+│   ├── domain/                # Core business logic, zero external dependencies
 │   │   ├── mod.rs
-│   │   ├── package.rs         # Struct PackageMigration, RiskLevel enum
-│   │   ├── risk.rs            # Regole di classificazione rischio
-│   │   └── plan.rs            # MigrationPlan: raccolta di decisioni pre-esecuzione
+│   │   ├── package.rs         # PackageMigration struct, RiskLevel enum
+│   │   ├── risk.rs            # Risk classification rules
+│   │   └── plan.rs            # MigrationPlan: collection of pre-execution decisions
 │   │
-│   ├── application/           # Orchestrazione dei casi d'uso
+│   ├── application/           # Use case orchestration
 │   │   ├── mod.rs
-│   │   ├── scan.rs            # Caso d'uso: scansione pacchetti
-│   │   ├── migrate.rs         # Caso d'uso: esecuzione migrazione
-│   │   └── rollback.rs        # Caso d'uso: ripristino stato precedente
+│   │   ├── scan.rs            # Use case: package scanning
+│   │   ├── migrate.rs         # Use case: migration execution
+│   │   └── rollback.rs        # Use case: restoring previous state
 │   │
-│   ├── infrastructure/        # Integrazioni con sistemi esterni
+│   ├── infrastructure/        # External system integrations
 │   │   ├── mod.rs
-│   │   ├── apt.rs             # Lettura database dpkg/apt
-│   │   ├── brew.rs            # Client API Homebrew + esecuzione comandi brew
-│   │   ├── config.rs          # Lettura configurazione TOML
-│   │   └── filesystem.rs      # Scrittura Brewfile, rollback script, log
+│   │   ├── apt.rs             # dpkg/apt database reading
+│   │   ├── brew.rs            # Homebrew API client + brew command execution
+│   │   ├── config.rs          # TOML configuration reading
+│   │   └── filesystem.rs      # Brewfile, rollback script, log writing
 │   │
-│   └── presentation/          # Layer di presentazione
+│   └── presentation/          # Presentation layer
 │       ├── mod.rs
-│       ├── cli.rs             # Definizione comandi clap
-│       └── tui/               # Interfaccia ratatui
+│       ├── cli.rs             # clap command definitions
+│       └── tui/               # ratatui interface
 │           ├── mod.rs
-│           ├── app.rs         # Stato applicazione TUI
-│           ├── render.rs      # Rendering checklist e riepilogo
-│           └── input.rs       # Gestione input tastiera
+│           ├── app.rs         # TUI application state
+│           ├── render.rs      # Checklist and summary rendering
+│           └── input.rs       # Keyboard input handling
 │
 ├── tests/                     # Integration tests
 │   ├── scan_test.rs
 │   ├── matcher_test.rs
-│   └── fixtures/              # Dati di test (mock dpkg status, mock API response)
+│   └── fixtures/              # Test data (mock dpkg status, mock API response)
 │       ├── dpkg_status_sample
 │       └── brew_api_sample.json
 │
-├── debian/                    # Metadata per pacchetto .deb (cargo-deb)
-│   └── postinst               # Script post-installazione (opzionale)
+├── debian/                    # .deb package metadata (cargo-deb)
+│   └── postinst               # Post-installation script (optional)
 │
-├── completions/               # Shell completions (generate a build-time)
+├── completions/               # Shell completions (generated at build-time)
 │   ├── apt2brew.bash
 │   ├── apt2brew.zsh
 │   └── apt2brew.fish
@@ -57,7 +57,7 @@ apt2brew/
 ├── man/                       # Man pages
 │   └── apt2brew.1
 │
-└── docs/                      # Documentazione progetto
+└── docs/                      # Project documentation
     ├── ARCHITECTURE.md
     ├── PROJECT_STRUCTURE.md
     ├── DOMAIN_MODEL.md
@@ -66,29 +66,29 @@ apt2brew/
     └── temp/                  # Scratch pad (gitignored)
 ```
 
-## Responsabilità dei layer
+## Layer Responsibilities
 
 ### `domain/`
-Contiene **solo** la logica di business pura. Nessuna dipendenza esterna (no crate di I/O, no network).
-Definisce i tipi core (`PackageMigration`, `RiskLevel`, `MigrationPlan`) e le regole di classificazione.
-Tutto in questo layer è testabile con unit test puri, senza mock.
+Contains **only** pure business logic. No external dependencies (no I/O crates, no network).
+Defines core types (`PackageMigration`, `RiskLevel`, `MigrationPlan`) and classification rules.
+Everything in this layer is testable with pure unit tests, no mocks needed.
 
 ### `application/`
-Orchestratori dei casi d'uso. Ricevono trait objects dalle infrastrutture e coordinano il flusso:
-scan → match → classify → plan. Non contengono logica di business né dettagli di I/O.
+Use case orchestrators. They receive trait objects from infrastructure and coordinate the flow:
+scan → match → classify → plan. They contain no business logic nor I/O details.
 
 ### `infrastructure/`
-Implementazioni concrete delle interfacce definite in domain.
-Qui vivono: parsing del database dpkg, client HTTP per le API Homebrew, lettura/scrittura file.
+Concrete implementations of interfaces defined in domain.
+This is where dpkg database parsing, Homebrew API HTTP client, and file read/write live.
 
 ### `presentation/`
-Tutto ciò che riguarda l'interazione con l'utente: parsing argomenti CLI, rendering TUI,
-gestione input. Nessuna logica di business.
+Everything related to user interaction: CLI argument parsing, TUI rendering,
+input handling. No business logic.
 
 ### `debian/`
-Metadata necessario per la generazione del pacchetto `.deb` tramite `cargo-deb`.
-Include eventuali script di post-installazione.
+Metadata needed for `.deb` package generation via `cargo-deb`.
+Includes optional post-installation scripts.
 
-### `completions/` e `man/`
-Generati a build-time (via `clap_complete` e `clap_mangen`).
-Installati nei path standard dal pacchetto .deb.
+### `completions/` and `man/`
+Generated at build-time (via `clap_complete` and `clap_mangen`).
+Installed to standard paths by the .deb package.
