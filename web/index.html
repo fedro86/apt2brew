@@ -362,6 +362,76 @@
   .code-card pre .prompt { color: var(--accent); user-select: none; }
   .code-card pre .comment { color: var(--fg-mute); }
 
+  /* ---- Usage flow ---- */
+  .flow {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr;
+    gap: 18px;
+    align-items: stretch;
+    max-width: 980px;
+    margin: 0 auto;
+  }
+  .flow .step {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 22px;
+    position: relative;
+    transition: border-color .15s, transform .15s;
+  }
+  .flow .step:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .flow .step .num {
+    position: absolute;
+    top: -14px;
+    left: 22px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #002b15;
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 700;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .flow .step h3 {
+    margin: 6px 0 6px;
+    font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    font-size: 18px;
+    color: var(--accent);
+    letter-spacing: -0.01em;
+  }
+  .flow .step .tag {
+    display: inline-block;
+    color: var(--fg-mute);
+    font-size: 12px;
+    font-family: "JetBrains Mono", monospace;
+    margin-bottom: 10px;
+  }
+  .flow .step p { margin: 0; color: var(--fg-dim); font-size: 14px; }
+  .flow .arrow {
+    display: flex;
+    align-items: center;
+    color: var(--accent);
+    font-size: 22px;
+    font-family: "JetBrains Mono", monospace;
+    user-select: none;
+    opacity: 0.7;
+  }
+  @media (max-width: 820px) {
+    .flow {
+      grid-template-columns: 1fr;
+      max-width: 420px;
+    }
+    .flow .arrow {
+      justify-content: center;
+      transform: rotate(90deg);
+      font-size: 18px;
+    }
+  }
+
   /* ---- Footer ---- */
   footer {
     padding: 40px 0 60px;
@@ -660,27 +730,32 @@
   <!-- ============== USAGE ============== -->
   <section id="usage" class="section">
     <h2>Three commands. That's the whole tool.</h2>
-    <p class="section-sub">Read-only scan, interactive migrate, and a TUI rollback. Each has a non-interactive mode for scripts.</p>
+    <p class="section-sub">A natural progression: see what you have, move what's safe, undo if needed.</p>
 
-    <div class="install-grid">
-      <div class="code-card">
-        <div class="head"><span>Scan (read-only)</span></div>
-<pre><span class="prompt">$</span> apt2brew scan
-<span class="comment"># prints a table: package | apt ver | brew | risk | reason</span></pre>
+    <div class="flow">
+      <div class="step">
+        <div class="num">1</div>
+        <h3>scan</h3>
+        <div class="tag">read-only</div>
+        <p>Lists every manually-installed APT and snap package, finds the matching Homebrew formula, and labels each one Low or High risk.</p>
       </div>
 
-      <div class="code-card">
-        <div class="head"><span>Migrate</span></div>
-<pre><span class="prompt">$</span> apt2brew migrate            <span class="comment"># interactive TUI</span>
-<span class="prompt">$</span> apt2brew migrate --dry-run  <span class="comment"># show what would happen</span>
-<span class="prompt">$</span> apt2brew migrate --yes      <span class="comment"># execute with pre-selected packages</span></pre>
+      <div class="arrow" aria-hidden="true">&rarr;</div>
+
+      <div class="step">
+        <div class="num">2</div>
+        <h3>migrate</h3>
+        <div class="tag">interactive TUI</div>
+        <p>Toggle the packages you want to move, hit Enter, and apt2brew installs them via brew, verifies each one, then removes the originals from APT or snap.</p>
       </div>
 
-      <div class="code-card">
-        <div class="head"><span>Rollback</span></div>
-<pre><span class="prompt">$</span> apt2brew rollback                  <span class="comment"># pick from a TUI</span>
-<span class="prompt">$</span> apt2brew rollback --yes            <span class="comment"># revert the latest run</span>
-<span class="prompt">$</span> apt2brew rollback --package fd     <span class="comment"># revert one package</span></pre>
+      <div class="arrow" aria-hidden="true">&rarr;</div>
+
+      <div class="step">
+        <div class="num">3</div>
+        <h3>rollback</h3>
+        <div class="tag">safety net</div>
+        <p>Reinstalls packages back to APT or snap and removes them from brew. Works for the latest run or any individual package — the rollback script is written before anything is removed.</p>
       </div>
     </div>
   </section>
