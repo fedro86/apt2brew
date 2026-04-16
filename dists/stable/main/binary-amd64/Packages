@@ -5,10 +5,10 @@ Maintainer: fedro86
 Installed-Size: 4769
 Depends: libc6 (>= 2.39)
 Filename: pool/main/a/apt2brew/apt2brew_0.1.0-1_amd64.deb
-Size: 1662468
-MD5sum: 12c69b74de66ba93a71eb5015433b55b
-SHA1: 787bdce33ce2ec798dd45325464cbf5dcc85db4b
-SHA256: de44a6fa35647e08ddee058c0ca523575f7cc9e1b367dd3969ea0b9b83eff9a8
+Size: 1662476
+MD5sum: 2f56f2346b3902c757ad8f6e6ed47a46
+SHA1: abc2da6d936aaed554088a103d1b855425ae2087
+SHA256: caf4aa32cd83c284e78337d8f014482185c2839c28c3a8b5eabe824091b04d80
 Section: utils
 Priority: optional
 Homepage: https://github.com/fedro86/apt2brew
@@ -55,10 +55,10 @@ Description: Intelligent migration tool from APT (system-wide) to Homebrew (user
  .
  ```bash
  sudo install -m 0755 -d /etc/apt/keyrings
- curl -fsSL https://fedro86.github.io/apt2brew/apt2brew.gpg.key \
+ curl -fsSL https://apt2brew.federicoconticello.com/apt2brew.gpg.key \
    | sudo gpg --dearmor -o /etc/apt/keyrings/apt2brew.gpg
  echo "deb [signed-by=/etc/apt/keyrings/apt2brew.gpg]
- https://fedro86.github.io/apt2brew stable main" \
+ https://apt2brew.federicoconticello.com stable main" \
    | sudo tee /etc/apt/sources.list.d/apt2brew.list
  sudo apt update
  sudo apt install apt2brew

@@ -6,25 +6,25 @@ Version: 1.0
 Architectures: amd64
 Components: main
 Description: apt2brew APT repository — built from github.com/fedro86/apt2brew
-Date: Thu, 16 Apr 2026 20:34:02 UTC
-Date: Thu, 16 Apr 2026 20:34:02 +0000
+Date: Thu, 16 Apr 2026 21:06:34 UTC
+Date: Thu, 16 Apr 2026 21:06:34 +0000
 MD5Sum:
- 156d2312782703814dcc90110551d7ef              231 Release
- eed26e9cad51d76acbd4963c63193c54             7326 main/binary-amd64/Packages
- 7f3b2befea50d2f559c7408ce75e6142             3330 main/binary-amd64/Packages.gz
+ 7ffa0ba555deaeb5a7da8e062b01806c              231 Release
+ 1716bf7d8e0e5aff8d56c1e698f2d0e3             7336 main/binary-amd64/Packages
+ ed56b62f63c4c856da72db70ff743a07             3339 main/binary-amd64/Packages.gz
  f2fd02a75875c2eb9a0f90e235cef40d               85 main/binary-amd64/Release
 SHA1:
- 9640cc36ebd0ecfd155053f6230c161aacb869c3              231 Release
- 51a04da6b89ff8c64906fb389162209437659af3             7326 main/binary-amd64/Packages
- 61d1123157c6af4ec550ea0d3fcea2ea68e31584             3330 main/binary-amd64/Packages.gz
+ 51b44e11353d002c03dc10d76e0a3cfcf99c754c              231 Release
+ 182ad3559cef24490e0fa78cd2cc2d1f85c2201e             7336 main/binary-amd64/Packages
+ bab30387fa1301d6bbcec89d81c632f3ec245ed1             3339 main/binary-amd64/Packages.gz
  1de6f6efb7eefa592cebea31b2e199fc42754463               85 main/binary-amd64/Release
 SHA256:
- 710e03ba0a2166cc411496f1046d2e20fb2aa7400cada00947634c3972733863              231 Release
- f4dbf5877f20969975c7a3d1532bd51512fb9c175f90a12c69a39012e5ae87d1             7326 main/binary-amd64/Packages
- 48d5292c360a7eabd43e145b7b777985ad0cb0c6c7afc9de271bc074445017e5             3330 main/binary-amd64/Packages.gz
+ 81ef93c59f32de46ef8383f6eeaff49056b97f4c9c58edefa58072b6b6bf7938              231 Release
+ a3370850c879dea98b63ed94f1b3d740eeb5d99f39cd93cbba206d808738727d             7336 main/binary-amd64/Packages
+ ee352fecdd3533f2a8d6c4825651f8c395cfdfb3e0b0ec39d33fa751f421d1dc             3339 main/binary-amd64/Packages.gz
  8a445519211129c9e9f51bae965268b2f1dfbb8b0dae5c1312487bbf20bd3c60               85 main/binary-amd64/Release
 SHA512:
- 68954d3a75ebef4c954cc84a9fa731252c2aa11c31a83ff3ecc4f16b3e1ac0b17f8b292cf79f136b3f18cfdd596fa2deecbeef686476b2cc0bac28ae33172f01              231 Release
- 6c605d13e2502a704a577b82868c7158df11212dfdceaefeb6b5833e0beb721bd9e9bd19f3bc38784e998aa10c4c7799e62f18c418b6dea2deb8ade3ddbf5c95             7326 main/binary-amd64/Packages
- bad68c8478ccd5268031b973bd2d06785c3dfa5606b73cd90c171e727ac3a20832cf5dfd64bc9e4283ff2e1186d7700f1d3ae7d615185952c3fdae025061ac7b             3330 main/binary-amd64/Packages.gz
+ 8ddc69680d983af21509a0c5a7badb8b7b0200c40092feb5deaa76784347462675345fff7078d6211618370e038e86b38e3eaba3f223372823f4c32e2b54388a              231 Release
+ 8c981b214cdcbe99fe01c6980983084f1ab66785ff8a149933505722ed5eb3165c79dc2033dff2cfc6347843c676c6b62fd4dca3fc55e7803ceaae146973e0bf             7336 main/binary-amd64/Packages
+ 503b94eec5675c4a6ff63a62f1c513f36dbd255f443f84cb4edd7ae2d67568f4b8145375badc1e0e5fd42a3b7e83aa1002b82133f1e69f9e4c92799b8048aff6             3339 main/binary-amd64/Packages.gz
  9f33af61f386924ff130f6a4ba7e8f763283d9c5b9718fb99b707e473063d8f011c0c8237b92f83d8e0a403270d18025cc3e6bb8166fd5f18bbbb80cbfd1a856               85 main/binary-amd64/Release
