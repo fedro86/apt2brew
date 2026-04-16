@@ -325,13 +325,32 @@
   .code-card .head {
     display: flex;
     justify-content: space-between;
-    padding: 10px 16px;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 8px 8px 16px;
     background: var(--bg-soft);
     border-bottom: 1px solid var(--border);
     font-size: 13px;
     color: var(--fg-dim);
     font-family: "JetBrains Mono", monospace;
   }
+  .code-card .head .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .code-card .head .meta { color: var(--fg-mute); font-size: 12px; }
+  .code-card .copy-btn {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--fg-dim);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: color .15s, border-color .15s, background .15s;
+    flex-shrink: 0;
+  }
+  .code-card .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .code-card .copy-btn.copied { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
   .code-card pre {
     margin: 0;
     padding: 16px;
@@ -375,14 +394,6 @@
   </nav>
 
   <header class="hero">
-    <!--
-      TODO: wire this version pill to the latest published tag.
-      Plan: have the release workflow emit a small JSON file (e.g.
-      /version.json with { "tag": "v0.2.1", "url": "https://github.com/.../releases/tag/v0.2.1" })
-      and replace this static span with a <a id="version-pill"> populated by a
-      tiny inline fetch() at page load. Until the first tag exists this stays
-      static.
-    -->
     <a class="eyebrow" href="https://github.com/fedro86/apt2brew/releases" target="_blank" rel="noopener" id="version-pill">v0.1.0 — APT &amp; snap → Homebrew, the safe way</a>
     <h1>Move user-space tools<br>out of <span class="accent">apt</span> and into <span class="accent">brew</span>.</h1>
     <p class="lede">
@@ -682,6 +693,68 @@
     <a href="https://github.com/fedro86/apt2brew">github.com/fedro86/apt2brew</a>
   </div>
 </footer>
+
+<script>
+(function () {
+  const REPO = "fedro86/apt2brew";
+
+  // ---------- Copy buttons on every .code-card ----------
+  document.querySelectorAll(".code-card").forEach(card => {
+    const head = card.querySelector(".head");
+    const pre  = card.querySelector("pre");
+    if (!head || !pre) return;
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "copy-btn";
+    btn.textContent = "copy";
+    btn.setAttribute("aria-label", "Copy code to clipboard");
+    head.appendChild(btn);
+
+    btn.addEventListener("click", async () => {
+      // Strip the leading "$ " prompts so users can paste the commands
+      // directly into a shell. Also collapse line-continuation backslashes
+      // followed by indentation into single spaces.
+      const raw = pre.innerText;
+      const cleaned = raw
+        .split("\n")
+        .map(line => line.replace(/^\$\s?/, ""))
+        .join("\n")
+        .replace(/\\\n\s+/g, " ")
+        .trim();
+
+      try {
+        await navigator.clipboard.writeText(cleaned);
+        const original = btn.textContent;
+        btn.textContent = "copied";
+        btn.classList.add("copied");
+        setTimeout(() => {
+          btn.textContent = original;
+          btn.classList.remove("copied");
+        }, 1500);
+      } catch (e) {
+        btn.textContent = "copy failed";
+        setTimeout(() => { btn.textContent = "copy"; }, 1500);
+      }
+    });
+  });
+
+  // ---------- Latest release → version pill ----------
+  const pill = document.getElementById("version-pill");
+  if (pill) {
+    fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+      headers: { "Accept": "application/vnd.github+json" }
+    })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(rel => {
+        const tag = rel.tag_name || "v0.1.0";
+        pill.textContent = `${tag} \u2014 APT & snap \u2192 Homebrew, the safe way`;
+        if (rel.html_url) pill.href = rel.html_url;
+      })
+      .catch(() => { /* leave the static fallback in place */ });
+  }
+})();
+</script>
 
 </body>
 </html>
