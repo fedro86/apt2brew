@@ -1,0 +1,67 @@
+name: Deploy site to gh-pages
+
+# Auto-deploy the static site whenever web/ changes on main, without
+# rebuilding the .deb or regenerating APT repo metadata. The release
+# workflow stays tag-driven for actual versioned releases.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - '.github/workflows/deploy-site.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Same group as the release workflow so a website push can't race a
+# tag-driven .deb publish.
+concurrency:
+  group: apt-repo
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source (for web/)
+        uses: actions/checkout@v4
+        with:
+          path: source
+
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: pages
+
+      - name: Copy web/ to gh-pages root
+        run: |
+          set -euo pipefail
+          if [ ! -d source/web ] || [ -z "$(ls -A source/web 2>/dev/null)" ]; then
+            echo "::error::source/web is missing or empty — nothing to deploy"
+            exit 1
+          fi
+          # cp -rT copies the *contents* of web/ into pages/ without removing
+          # APT repo files (dists/, pool/, apt2brew.gpg.key) that the release
+          # workflow owns. Only files that overlap with web/ get overwritten.
+          cp -rT source/web pages
+          echo "Deployed:"
+          (cd source/web && find . -type f | sort)
+
+      - name: Commit and push gh-pages
+        run: |
+          set -euo pipefail
+          cd pages
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No site changes to publish."
+            exit 0
+          fi
+          git commit -m "Deploy site (${{ github.sha }})"
+          git remote set-url origin \
+            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git push origin gh-pages
