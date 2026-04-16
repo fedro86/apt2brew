@@ -215,35 +215,23 @@ jobs:
           echo "Repo tree:"
           find . -maxdepth 5 -type f | sort
 
-      - name: Write index.html for the Pages root
+      - name: Copy promo site (web/) to Pages root
         run: |
           set -euo pipefail
-          repo_url="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
-          cat > pages/index.html <<EOF
+          if [ -d source/web ] && [ -n "$(ls -A source/web 2>/dev/null)" ]; then
+            cp -rT source/web pages
+            echo "Copied web/ assets to gh-pages root."
+          else
+            echo "::warning::source/web is missing or empty — falling back to a minimal index.html"
+            repo_url="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+            cat > pages/index.html <<EOF
           <!doctype html>
-          <html><head><meta charset="utf-8"><title>apt2brew APT repo</title>
-          <style>
-            body { font-family: ui-monospace, Menlo, monospace; max-width: 720px;
-                   margin: 60px auto; padding: 0 20px; color: #1a1a1a;
-                   line-height: 1.6; background: #fafafa; }
-            h1 { letter-spacing: -0.02em; }
-            pre { background: #111; color: #eee; padding: 14px 16px;
-                  border-radius: 6px; overflow-x: auto; }
-            a { color: #0a66c2; }
-          </style></head><body>
-          <h1>apt2brew APT repository</h1>
-          <p>Add this repository to install <strong>apt2brew</strong> via APT and
-          receive updates with <code>apt update</code>.</p>
-          <pre>sudo install -m 0755 -d /etc/apt/keyrings
-          curl -fsSL ${repo_url}/apt2brew.gpg.key \\
-            | sudo gpg --dearmor -o /etc/apt/keyrings/apt2brew.gpg
-          echo "deb [signed-by=/etc/apt/keyrings/apt2brew.gpg] ${repo_url} stable main" \\
-            | sudo tee /etc/apt/sources.list.d/apt2brew.list
-          sudo apt update
-          sudo apt install apt2brew</pre>
-          <p>Source: <a href="https://github.com/${{ github.repository }}">github.com/${{ github.repository }}</a></p>
+          <html><head><meta charset="utf-8"><title>apt2brew APT repo</title></head>
+          <body><h1>apt2brew APT repository</h1>
+          <p>See <a href="https://github.com/${{ github.repository }}">github.com/${{ github.repository }}</a> for install instructions.</p>
           </body></html>
           EOF
+          fi
 
       - name: Commit and push gh-pages
         run: |
