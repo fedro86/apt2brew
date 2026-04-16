@@ -79,31 +79,10 @@ pub struct MigrationResult {
     pub brew_installed: bool,
     pub path_verified: bool,
     pub apt_removed: bool,
+    /// True when the formula/cask was already installed in Homebrew before this
+    /// migration ran. APT removal is still safe (brew has the package), but the
+    /// user should know we didn't perform a fresh install — their brew copy may
+    /// be an older or differently-configured version.
+    pub was_already_installed: bool,
     pub error: Option<String>,
-}
-
-impl MigrationResult {
-    pub fn success(package: &str, brew_name: &str, source: PackageSource) -> Self {
-        Self {
-            package: package.to_string(),
-            brew_name: brew_name.to_string(),
-            source,
-            brew_installed: true,
-            path_verified: true,
-            apt_removed: true,
-            error: None,
-        }
-    }
-
-    pub fn failed(package: &str, brew_name: &str, source: PackageSource, error: String) -> Self {
-        Self {
-            package: package.to_string(),
-            brew_name: brew_name.to_string(),
-            source,
-            brew_installed: false,
-            path_verified: false,
-            apt_removed: false,
-            error: Some(error),
-        }
-    }
 }

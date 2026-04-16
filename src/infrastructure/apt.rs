@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use crate::domain::package::{AptPackage, PackageSource};
+use crate::domain::pkg_name::is_valid_package_name;
 
 /// Errors from APT scanning operations.
 #[derive(Debug, thiserror::Error)]
@@ -21,9 +22,12 @@ pub fn parse_dpkg_status(path: &Path) -> Result<Vec<AptPackage>, AptError> {
 
 /// Parse dpkg status content from a string (testable without filesystem).
 pub fn parse_dpkg_status_content(content: &str) -> Vec<AptPackage> {
+    // Real dpkg uses LF, but normalize CRLF defensively so a fixture saved on
+    // Windows doesn't silently produce zero packages.
+    let normalized = content.replace("\r\n", "\n");
     let mut packages = Vec::new();
 
-    for block in content.split("\n\n") {
+    for block in normalized.split("\n\n") {
         let mut name = None;
         let mut version = None;
         let mut status = None;
@@ -53,6 +57,10 @@ pub fn parse_dpkg_status_content(content: &str) -> Vec<AptPackage> {
             .is_some_and(|s| s.contains("install ok installed"));
 
         if let (Some(name), Some(version), true) = (name, version, is_installed) {
+            if !is_valid_package_name(&name) {
+                eprintln!("  Skipping dpkg entry with invalid package name: {name:?}");
+                continue;
+            }
             let is_library = name.starts_with("lib");
             packages.push(AptPackage {
                 name,
@@ -319,6 +327,36 @@ Description: A removed library
         let packages = parse_dpkg_status_content(SAMPLE_DPKG);
         let base = packages.iter().find(|p| p.name == "base-files").unwrap();
         assert_eq!(base.priority.as_deref(), Some("required"));
+    }
+
+    #[test]
+    fn parse_dpkg_handles_crlf() {
+        // Same content as SAMPLE_DPKG (3 installable packages) but with CRLF.
+        let crlf = SAMPLE_DPKG.replace('\n', "\r\n");
+        let packages = parse_dpkg_status_content(&crlf);
+        assert_eq!(packages.len(), 3);
+        assert_eq!(packages[0].name, "git");
+    }
+
+    #[test]
+    fn parse_dpkg_skips_entries_with_invalid_name() {
+        let content = r#"Package: -oFoo
+Status: install ok installed
+Priority: optional
+Section: admin
+Version: 1.0
+Description: a crafted name that must not reach argv
+
+Package: git
+Status: install ok installed
+Priority: optional
+Section: vcs
+Version: 1:2.43.0-1
+Description: legit
+"#;
+        let packages = parse_dpkg_status_content(content);
+        assert_eq!(packages.len(), 1);
+        assert_eq!(packages[0].name, "git");
     }
 
     #[test]

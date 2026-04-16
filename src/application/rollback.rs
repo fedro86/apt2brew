@@ -1,19 +1,4 @@
-use std::path::PathBuf;
-
 use crate::infrastructure::rollback::{self, RollbackEntry, RollbackError};
-
-/// List available rollback scripts.
-pub fn list_rollbacks() -> Result<Vec<(PathBuf, Vec<RollbackEntry>)>, RollbackError> {
-    let scripts = rollback::find_rollback_scripts()?;
-
-    let mut results = Vec::new();
-    for path in scripts {
-        let entries = rollback::parse_rollback_script(&path)?;
-        results.push((path, entries));
-    }
-
-    Ok(results)
-}
 
 /// Execute a full rollback from the most recent script.
 pub fn run_rollback(yes: bool) -> Result<(), RollbackError> {

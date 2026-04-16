@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::domain::package::{BrewType, PackageMigration, PackageSource, RiskLevel};
+use crate::domain::package::{PackageMigration, PackageSource, RiskLevel};
 use crate::domain::risk;
 use crate::infrastructure::apt;
 use crate::infrastructure::brew::BrewIndex;
@@ -50,14 +50,13 @@ pub async fn run_scan(dpkg_path: &Path) -> Result<ScanResult, ScanError> {
     // 6. For snap packages, also try snap-specific aliases
     for (i, snap_pkg) in snap_packages.iter().enumerate() {
         let migration = &mut migrations[snap_start + i];
-        if migration.brew_name.is_none() {
-            if let Some(brew_name) = snap::snap_brew_alias(&snap_pkg.name) {
-                if let Some((name, version, brew_type)) = brew_index.find_match(&brew_name) {
-                    migration.brew_name = Some(name);
-                    migration.brew_version = Some(version);
-                    migration.brew_type = Some(brew_type);
-                }
-            }
+        if migration.brew_name.is_none()
+            && let Some(brew_name) = snap::snap_brew_alias(&snap_pkg.name)
+            && let Some((name, version, brew_type)) = brew_index.find_match(&brew_name)
+        {
+            migration.brew_name = Some(name);
+            migration.brew_version = Some(version);
+            migration.brew_type = Some(brew_type);
         }
     }
 

@@ -1,3 +1,3 @@
 pub mod package;
-pub mod plan;
+pub mod pkg_name;
 pub mod risk;

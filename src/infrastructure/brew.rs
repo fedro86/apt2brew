@@ -4,6 +4,7 @@ use serde::Deserialize;
 
 use super::aliases;
 use crate::domain::package::{BrewType, PackageMigration};
+use crate::domain::pkg_name::is_valid_package_name;
 
 /// Errors from Homebrew operations.
 #[derive(Debug, thiserror::Error)]
@@ -106,8 +107,17 @@ impl BrewIndex {
     /// Fetch formulae from Homebrew API and build the index.
     /// Casks are macOS-only (.dmg/.app) and not usable on Linux.
     pub async fn fetch() -> Result<Self, BrewError> {
-        let formulae: Vec<BrewFormula> = reqwest::get("https://formulae.brew.sh/api/formula.json")
+        // Bound on the whole request so a slow mirror can't hang the CLI.
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .user_agent(concat!("apt2brew/", env!("CARGO_PKG_VERSION")))
+            .build()?;
+
+        let formulae: Vec<BrewFormula> = client
+            .get("https://formulae.brew.sh/api/formula.json")
+            .send()
             .await?
+            .error_for_status()?
             .json()
             .await?;
 
@@ -115,6 +125,7 @@ impl BrewIndex {
     }
 
     /// Build index from pre-fetched data (for testing).
+    #[cfg(test)]
     pub fn from_formulae(formulae: &[BrewFormula]) -> Self {
         Self::build(formulae, &[])
     }
@@ -124,8 +135,12 @@ impl BrewIndex {
         let cask_blocklist = aliases::cask_blocklist();
         let mut lookup = HashMap::new();
 
-        // Formulae
+        // Formulae — drop any entry whose canonical name isn't a valid package name.
+        // This protects downstream `brew install <name>` from a malicious/corrupt API response.
         for f in formulae {
+            if !is_valid_package_name(&f.name) {
+                continue;
+            }
             let entry = BrewEntry {
                 name: f.name.clone(),
                 version: f.versions.stable.clone().unwrap_or_default(),
@@ -134,12 +149,17 @@ impl BrewIndex {
 
             lookup.insert(f.name.clone(), entry.clone());
             for alias in &f.aliases {
-                lookup.insert(alias.clone(), entry.clone());
+                if is_valid_package_name(alias) {
+                    lookup.insert(alias.clone(), entry.clone());
+                }
             }
         }
 
         // Casks (don't overwrite formulae — formulae take priority)
         for c in casks {
+            if !is_valid_package_name(&c.token) {
+                continue;
+            }
             let entry = BrewEntry {
                 name: c.token.clone(),
                 version: c.version.clone().unwrap_or_default(),
@@ -148,7 +168,9 @@ impl BrewIndex {
 
             lookup.entry(c.token.clone()).or_insert(entry.clone());
             for old in &c.old_tokens {
-                lookup.entry(old.clone()).or_insert(entry.clone());
+                if is_valid_package_name(old) {
+                    lookup.entry(old.clone()).or_insert(entry.clone());
+                }
             }
         }
 
@@ -161,13 +183,13 @@ impl BrewIndex {
 
     /// Try to match an APT package name to a Homebrew formula or cask.
     pub fn find_match(&self, apt_name: &str) -> Option<(String, String, BrewType)> {
-        // 1. External aliases from JSON (apt-to-brew.json)
-        if let Some((brew_name, brew_type)) = self.apt_aliases.get(apt_name) {
-            if let Some(entry) = self.lookup.get(brew_name.as_str()) {
-                return self.entry_result(entry, apt_name);
-            }
-            // Alias points to a name not in the index — might be valid on user's system
-            // but we can't verify version, so skip
+        // 1. External aliases from JSON (apt-to-brew.json). The alias's
+        // `brew_type` hint is intentionally ignored — we defer to the live
+        // Homebrew index, which may reclassify formula ↔ cask upstream.
+        if let Some((brew_name, _)) = self.apt_aliases.get(apt_name)
+            && let Some(entry) = self.lookup.get(brew_name.as_str())
+        {
+            return self.entry_result(entry, apt_name);
         }
 
         // 2. Exact name match in brew index

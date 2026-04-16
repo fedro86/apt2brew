@@ -1,6 +1,9 @@
 use std::fs;
 use std::path::PathBuf;
 
+use crate::domain::pkg_name::is_valid_package_name;
+use crate::infrastructure::filesystem::home_dir;
+
 /// Errors from rollback operations.
 #[derive(Debug, thiserror::Error)]
 pub enum RollbackError {
@@ -9,9 +12,6 @@ pub enum RollbackError {
 
     #[error("failed to read rollback script: {0}")]
     Read(#[from] std::io::Error),
-
-    #[error("apt install failed for {0}: {1}")]
-    AptInstall(String, String),
 
     #[error("brew uninstall failed for {0}: {1}")]
     BrewUninstall(String, String),
@@ -25,15 +25,13 @@ pub struct RollbackEntry {
     pub is_snap: bool,
 }
 
-fn base_dir() -> PathBuf {
-    std::env::var("HOME")
-        .map(|h| PathBuf::from(h).join(".apt2brew"))
-        .unwrap_or_else(|_| PathBuf::from("/tmp/.apt2brew"))
+fn base_dir() -> Result<PathBuf, RollbackError> {
+    Ok(home_dir().map_err(RollbackError::Read)?.join(".apt2brew"))
 }
 
 /// Find all rollback scripts, sorted by timestamp (oldest first).
 pub fn find_rollback_scripts() -> Result<Vec<PathBuf>, RollbackError> {
-    let dir = base_dir();
+    let dir = base_dir()?;
     if !dir.exists() {
         return Err(RollbackError::NoScripts);
     }
@@ -63,13 +61,27 @@ pub fn parse_rollback_script(path: &PathBuf) -> Result<Vec<RollbackEntry>, Rollb
         let line = line.trim();
 
         if let Some(rest) = line.strip_prefix("sudo apt install -y ") {
-            current_pkg = Some((rest.trim().to_string(), false));
+            let name = rest.trim();
+            if is_valid_package_name(name) {
+                current_pkg = Some((name.to_string(), false));
+            } else {
+                current_pkg = None;
+            }
         } else if let Some(rest) = line.strip_prefix("sudo snap install ") {
-            current_pkg = Some((rest.trim().to_string(), true));
+            let name = rest.trim();
+            if is_valid_package_name(name) {
+                current_pkg = Some((name.to_string(), true));
+            } else {
+                current_pkg = None;
+            }
         }
 
         if let Some(rest) = line.strip_prefix("brew uninstall ") {
             let brew_name = rest.trim_end_matches(" || true").trim().to_string();
+            if !is_valid_package_name(&brew_name) {
+                current_pkg = None;
+                continue;
+            }
             if let Some((apt_name, is_snap)) = current_pkg.take() {
                 entries.push(RollbackEntry {
                     apt_name,
@@ -116,8 +128,14 @@ fn brew_list_cmd(args: &[&str]) -> Vec<String> {
 
 /// Execute rollback for a single brew uninstall (no sudo needed).
 pub fn brew_uninstall(brew_name: &str) -> Result<(), RollbackError> {
+    if !is_valid_package_name(brew_name) {
+        return Err(RollbackError::BrewUninstall(
+            brew_name.to_string(),
+            "invalid package name".to_string(),
+        ));
+    }
     let output = std::process::Command::new("brew")
-        .args(["uninstall", brew_name])
+        .args(["uninstall", "--", brew_name])
         .output()
         .map_err(|e| RollbackError::BrewUninstall(brew_name.to_string(), e.to_string()))?;
 
@@ -132,6 +150,12 @@ pub fn brew_uninstall(brew_name: &str) -> Result<(), RollbackError> {
 pub fn snap_install_batch(snap_names: &[&str]) -> Vec<String> {
     let mut failed = Vec::new();
     for name in snap_names {
+        if !is_valid_package_name(name) {
+            eprintln!("  Refusing to reinstall snap with invalid name: {name:?}");
+            failed.push((*name).to_string());
+            continue;
+        }
+        // `snap` CLI does not accept `--` as end-of-options; names are validated above.
         let status = std::process::Command::new("sudo")
             .args(["snap", "install", name])
             .stdin(std::process::Stdio::inherit())
@@ -141,7 +165,7 @@ pub fn snap_install_batch(snap_names: &[&str]) -> Vec<String> {
 
         if !status.is_ok_and(|s| s.success()) {
             eprintln!("  Failed to reinstall snap: {name}");
-            failed.push(name.to_string());
+            failed.push((*name).to_string());
         }
     }
     failed
@@ -151,8 +175,13 @@ pub fn snap_install_batch(snap_names: &[&str]) -> Vec<String> {
 pub fn apt_install_batch(apt_names: &[&str]) -> Vec<String> {
     let mut failed = Vec::new();
     for name in apt_names {
+        if !is_valid_package_name(name) {
+            eprintln!("  Refusing to reinstall apt with invalid name: {name:?}");
+            failed.push((*name).to_string());
+            continue;
+        }
         let status = std::process::Command::new("sudo")
-            .args(["apt", "install", "-y", name])
+            .args(["apt", "install", "-y", "--", name])
             .stdin(std::process::Stdio::inherit())
             .stdout(std::process::Stdio::inherit())
             .stderr(std::process::Stdio::inherit())
@@ -160,7 +189,7 @@ pub fn apt_install_batch(apt_names: &[&str]) -> Vec<String> {
 
         if !status.is_ok_and(|s| s.success()) {
             eprintln!("  Failed to reinstall apt: {name}");
-            failed.push(name.to_string());
+            failed.push((*name).to_string());
         }
     }
     failed
@@ -215,6 +244,49 @@ brew uninstall bat || true
 
         let path = file.path().to_path_buf();
         let entries = parse_rollback_script(&path).unwrap();
+        assert!(entries.is_empty());
+    }
+
+    #[test]
+    fn parse_rejects_flag_injected_apt_name() {
+        // A crafted rollback script placed in ~/.apt2brew/ must not smuggle
+        // apt options disguised as a package name.
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(
+            file,
+            r#"#!/bin/bash
+sudo apt install -y --reinstall=evil
+brew uninstall git || true
+
+sudo apt install -y -oAPT::Get::AllowUnauthenticated=true
+brew uninstall fd || true
+
+sudo apt install -y bat
+brew uninstall bat || true
+"#
+        )
+        .unwrap();
+
+        let entries = parse_rollback_script(&file.path().to_path_buf()).unwrap();
+        // Only the legitimate `bat` pairing survives. The two crafted entries are dropped.
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].apt_name, "bat");
+        assert_eq!(entries[0].brew_name, "bat");
+    }
+
+    #[test]
+    fn parse_rejects_flag_injected_brew_name() {
+        let mut file = NamedTempFile::new().unwrap();
+        writeln!(
+            file,
+            r#"#!/bin/bash
+sudo apt install -y git
+brew uninstall --force || true
+"#
+        )
+        .unwrap();
+
+        let entries = parse_rollback_script(&file.path().to_path_buf()).unwrap();
         assert!(entries.is_empty());
     }
 }

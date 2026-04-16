@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::domain::package::{MigrationResult, PackageMigration, PackageSource};
 use crate::infrastructure::filesystem;
 use crate::infrastructure::migrate as infra_migrate;
@@ -16,6 +18,16 @@ pub fn execute_migration(packages: &[PackageMigration]) {
         println!("No packages selected for migration.");
         return;
     }
+
+    // Reserve the rollback path *before* any system modification so incremental
+    // writes in phase 1 always have a stable target (invariant: CLAUDE.md).
+    let rollback_path = match filesystem::rollback_script_path() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("  Fatal: could not reserve rollback path: {e}");
+            return;
+        }
+    };
 
     // Phase 1: brew install all
     println!("\n  Phase 1: Installing via Homebrew...\n");
@@ -49,10 +61,20 @@ pub fn execute_migration(packages: &[PackageMigration]) {
         }
 
         results.push(result);
+
+        // Rewrite the on-disk rollback after every install so a Ctrl-C or panic
+        // leaves behind a script matching the actual brew state.
+        if let Err(e) = filesystem::write_rollback_script_at(&rollback_path, &results) {
+            eprintln!("  Warning: could not update rollback script: {e}");
+        }
     }
 
-    // Phase 2: batch removal from source managers
-    // Split successful results by source (APT vs Snap)
+    // Phase 2: batch removal from source managers — split successful results
+    // by source. Index `selected` by name once so the partition is O(n) instead
+    // of O(n²) on package count.
+    let by_name: HashMap<&str, &&PackageMigration> =
+        selected.iter().map(|p| (p.name.as_str(), p)).collect();
+
     let succeeded_names: Vec<String> = results
         .iter()
         .filter(|r| r.error.is_none())
@@ -62,9 +84,8 @@ pub fn execute_migration(packages: &[PackageMigration]) {
     let apt_to_remove: Vec<&str> = succeeded_names
         .iter()
         .filter(|name| {
-            selected
-                .iter()
-                .find(|p| p.name == name.as_str())
+            by_name
+                .get(name.as_str())
                 .is_some_and(|p| !is_snap_package(p))
         })
         .map(|s| s.as_str())
@@ -73,22 +94,21 @@ pub fn execute_migration(packages: &[PackageMigration]) {
     let snap_to_remove: Vec<&str> = succeeded_names
         .iter()
         .filter(|name| {
-            selected
-                .iter()
-                .find(|p| p.name == name.as_str())
+            by_name
+                .get(name.as_str())
                 .is_some_and(|p| is_snap_package(p))
         })
         .map(|s| s.as_str())
         .collect();
 
-    if !apt_to_remove.is_empty() || !snap_to_remove.is_empty() {
-        if !infra_migrate::warm_sudo() {
-            eprintln!("Failed to obtain sudo. Skipping package removal.");
-            // Skip to artifact generation
-        }
+    let needs_sudo = !apt_to_remove.is_empty() || !snap_to_remove.is_empty();
+    let sudo_ok = !needs_sudo || infra_migrate::warm_sudo();
+
+    if !sudo_ok {
+        eprintln!("  Failed to obtain sudo. Skipping package removal — brew installs will remain.");
     }
 
-    if !apt_to_remove.is_empty() {
+    if sudo_ok && !apt_to_remove.is_empty() {
         println!(
             "\n  Phase 2a: Removing {} APT packages...\n",
             apt_to_remove.len()
@@ -102,7 +122,7 @@ pub fn execute_migration(packages: &[PackageMigration]) {
         }
     }
 
-    if !snap_to_remove.is_empty() {
+    if sudo_ok && !snap_to_remove.is_empty() {
         println!(
             "\n  Phase 2b: Removing {} snap packages (requires sudo)...\n",
             snap_to_remove.len()
@@ -122,13 +142,10 @@ pub fn execute_migration(packages: &[PackageMigration]) {
         Err(e) => eprintln!("  Warning: could not write Brewfile: {e}"),
     }
 
-    let rollback_path = match filesystem::write_rollback_script(&results) {
-        Ok(path) => path,
-        Err(e) => {
-            eprintln!("  Warning: could not write rollback script: {e}");
-            std::path::PathBuf::from("(failed)")
-        }
-    };
+    // Final rollback rewrite, now with apt_removed flags populated.
+    if let Err(e) = filesystem::write_rollback_script_at(&rollback_path, &results) {
+        eprintln!("  Warning: could not finalize rollback script: {e}");
+    }
 
     let log_path = match filesystem::write_log(&results) {
         Ok(path) => path,

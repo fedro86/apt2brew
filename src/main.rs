@@ -11,7 +11,9 @@ use presentation::output::print_scan_table;
 use presentation::tui::app::TuiOutcome;
 use presentation::tui::run_tui;
 
-#[tokio::main]
+// Single-threaded runtime: the only async work is one HTTP request to the
+// Homebrew formula JSON, so a multi-thread executor would just be overhead.
+#[tokio::main(flavor = "current_thread")]
 async fn main() {
     let cli = Cli::parse();
 

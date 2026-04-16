@@ -86,15 +86,17 @@ pub fn run_rollback_tui() -> io::Result<()> {
     let formulae = rollback::brew_list_formulae();
     let casks = rollback::brew_list_casks();
 
-    let scripts = match rollback::find_rollback_scripts() {
-        Ok(s) => s,
-        Err(_) => Vec::new(),
-    };
+    let scripts = rollback::find_rollback_scripts().unwrap_or_default();
 
     let mut parsed_scripts: Vec<(PathBuf, Vec<RollbackEntry>)> = Vec::new();
     for path in &scripts {
-        let entries = rollback::parse_rollback_script(path).unwrap_or_default();
-        parsed_scripts.push((path.clone(), entries));
+        match rollback::parse_rollback_script(path) {
+            Ok(entries) => parsed_scripts.push((path.clone(), entries)),
+            Err(e) => eprintln!(
+                "  Warning: skipping unreadable rollback script {}: {e}",
+                path.display()
+            ),
+        }
     }
     parsed_scripts.reverse(); // newest first
 
@@ -138,10 +140,11 @@ pub fn run_rollback_tui() -> io::Result<()> {
             .map(|(n, _)| n.clone())
             .collect();
 
-        if apt_names.is_empty() && snap_names.is_empty() {
-            if let Some(alias_name) = reverse_aliases.get(name) {
-                apt_names.push(alias_name.clone());
-            }
+        if apt_names.is_empty()
+            && snap_names.is_empty()
+            && let Some(alias_name) = reverse_aliases.get(name)
+        {
+            apt_names.push(alias_name.clone());
         }
 
         let entry = BrewPackageEntry {

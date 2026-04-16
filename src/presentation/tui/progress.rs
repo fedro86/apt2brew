@@ -16,6 +16,55 @@ use crate::domain::package::{MigrationResult, PackageMigration};
 use crate::infrastructure::filesystem;
 use crate::infrastructure::migrate as infra_migrate;
 
+/// RAII guard for the alternate-screen + raw-mode terminal state.
+///
+/// Without this, a panic (or an early `?` return) mid-migration leaves the
+/// user's terminal in raw mode with scrollback hidden — the shell becomes
+/// effectively unusable until they `reset`. The guard restores terminal
+/// state on Drop even under unwinding.
+struct TerminalGuard {
+    active: bool,
+}
+
+impl TerminalGuard {
+    fn enter() -> io::Result<Self> {
+        enable_raw_mode()?;
+        execute!(io::stdout(), EnterAlternateScreen)?;
+        Ok(Self { active: true })
+    }
+
+    /// Leave the alternate screen temporarily (e.g. to run an interactive
+    /// sudo prompt on the real terminal). No-op if already inactive.
+    fn suspend(&mut self) -> io::Result<()> {
+        if self.active {
+            execute!(io::stdout(), LeaveAlternateScreen)?;
+            disable_raw_mode()?;
+            self.active = false;
+        }
+        Ok(())
+    }
+
+    /// Re-enter raw mode + alternate screen after a suspend.
+    fn resume(&mut self) -> io::Result<()> {
+        if !self.active {
+            enable_raw_mode()?;
+            execute!(io::stdout(), EnterAlternateScreen)?;
+            self.active = true;
+        }
+        Ok(())
+    }
+}
+
+impl Drop for TerminalGuard {
+    fn drop(&mut self) {
+        if self.active {
+            // Best-effort: errors here are not actionable (process is exiting).
+            let _ = execute!(io::stdout(), LeaveAlternateScreen);
+            let _ = disable_raw_mode();
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 enum PackageStatus {
     Pending,
@@ -65,11 +114,11 @@ pub fn run_migration_tui(packages: &[PackageMigration]) -> io::Result<()> {
         })
         .collect();
 
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
-    let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
+    // Reserve rollback path *before* any system modification.
+    let rollback_path = filesystem::rollback_script_path()?;
+
+    let mut guard = TerminalGuard::enter()?;
+    let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
 
     let mut current = 0;
     let total = entries.len();
@@ -107,6 +156,10 @@ pub fn run_migration_tui(packages: &[PackageMigration]) -> io::Result<()> {
 
                     results.push(result);
 
+                    // Rewrite the on-disk rollback after every install so a Ctrl-C
+                    // or panic leaves behind a script matching the actual brew state.
+                    let _ = filesystem::write_rollback_script_at(&rollback_path, &results);
+
                     // Auto-scroll to keep current visible
                     let visible_height = terminal.size()?.height.saturating_sub(10) as usize;
                     if current >= scroll_offset + visible_height {
@@ -142,15 +195,13 @@ pub fn run_migration_tui(packages: &[PackageMigration]) -> io::Result<()> {
                 }
 
                 // Need to leave TUI temporarily for sudo prompt
-                disable_raw_mode()?;
-                execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+                guard.suspend()?;
 
                 if !infra_migrate::warm_sudo() {
                     eprintln!("Failed to obtain sudo. Skipping package removal.");
                     apt_status = Some(Err("sudo authentication failed".to_string()));
 
-                    enable_raw_mode()?;
-                    execute!(io::stdout(), EnterAlternateScreen)?;
+                    guard.resume()?;
                     terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
                     phase = Phase::Done;
                     continue;
@@ -220,8 +271,7 @@ pub fn run_migration_tui(packages: &[PackageMigration]) -> io::Result<()> {
                 };
 
                 // Re-enter TUI for final summary
-                enable_raw_mode()?;
-                execute!(io::stdout(), EnterAlternateScreen)?;
+                guard.resume()?;
                 terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
                 phase = Phase::Done;
             }
@@ -242,15 +292,19 @@ pub fn run_migration_tui(packages: &[PackageMigration]) -> io::Result<()> {
         }
     }
 
-    disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    // Restore the terminal before printing any artifacts. The Drop impl is a
+    // belt-and-braces fallback for panics.
+    guard.suspend()?;
+    drop(terminal);
 
     // Generate artifacts
     if let Ok(path) = filesystem::write_brewfile(packages) {
         println!("  Brewfile: {}", path.display());
     }
-    let rollback_path = filesystem::write_rollback_script(&results)
-        .unwrap_or_else(|_| std::path::PathBuf::from("(failed)"));
+    // Final rollback rewrite, now with apt_removed flags populated.
+    if let Err(e) = filesystem::write_rollback_script_at(&rollback_path, &results) {
+        eprintln!("  Warning: could not finalize rollback script: {e}");
+    }
     let log_path =
         filesystem::write_log(&results).unwrap_or_else(|_| std::path::PathBuf::from("(failed)"));
 
@@ -313,8 +367,7 @@ fn draw_progress(
     let list_height = chunks[1].height.saturating_sub(2) as usize;
     let items: Vec<ListItem> = entries
         .iter()
-        .enumerate()
-        .map(|(_, entry)| {
+        .map(|entry| {
             let (icon, style) = match &entry.status {
                 PackageStatus::Pending => ("  ..", Style::default().fg(Color::DarkGray)),
                 PackageStatus::Installing => ("  >>", Style::default().fg(Color::Yellow)),
