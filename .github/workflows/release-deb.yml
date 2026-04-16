@@ -201,10 +201,12 @@ jobs:
           rm "dists/${dist}/Release.tmp"
 
           # Sign Release → Release.gpg (detached) and InRelease (clearsigned).
+          # `--yes` is required because both files exist on subsequent runs
+          # (we're rewriting metadata for an existing repo).
           if [ -n "${GPG_PASSPHRASE:-}" ]; then
-            passphrase_args=(--batch --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE")
+            passphrase_args=(--batch --yes --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE")
           else
-            passphrase_args=(--batch --pinentry-mode loopback)
+            passphrase_args=(--batch --yes --pinentry-mode loopback)
           fi
 
           gpg "${passphrase_args[@]}" --default-key "$GPG_KEY_ID" \
