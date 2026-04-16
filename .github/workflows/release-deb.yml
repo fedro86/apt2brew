@@ -1,0 +1,282 @@
+name: Release .deb and publish APT repo
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version_override:
+        description: "Optional Cargo.toml version to publish (defaults to current)"
+        required: false
+        type: string
+
+permissions:
+  contents: write   # to push commits + create GH releases
+  pages: write      # if using actions/deploy-pages (we use gh-pages branch instead, but harmless)
+  id-token: write
+
+concurrency:
+  group: apt-repo
+  cancel-in-progress: false
+
+jobs:
+  build-deb:
+    name: Build .deb (amd64)
+    runs-on: ubuntu-latest
+    outputs:
+      deb_filename: ${{ steps.locate.outputs.filename }}
+      version: ${{ steps.locate.outputs.version }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Install cargo-deb
+        run: cargo install cargo-deb --locked
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Build .deb package
+        run: cargo deb --no-build
+
+      - name: Locate .deb artifact
+        id: locate
+        run: |
+          set -euo pipefail
+          deb_path=$(find target/debian -name 'apt2brew_*_amd64.deb' -print -quit)
+          if [ -z "$deb_path" ]; then
+            echo "::error::No .deb produced under target/debian/"
+            exit 1
+          fi
+          filename=$(basename "$deb_path")
+          version=$(echo "$filename" | sed -E 's/^apt2brew_([^_]+)_amd64\.deb$/\1/')
+          echo "filename=$filename" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Built: $filename (version $version)"
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deb-amd64
+          path: target/debian/apt2brew_*_amd64.deb
+          if-no-files-found: error
+          retention-days: 7
+
+  publish-apt-repo:
+    name: Publish APT repo to gh-pages
+    needs: build-deb
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source (for README/key context)
+        uses: actions/checkout@v4
+        with:
+          path: source
+
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: pages
+          # Allow first-run when gh-pages doesn't exist yet
+          fetch-depth: 1
+        continue-on-error: true
+
+      - name: Initialize gh-pages working tree if absent
+        run: |
+          set -euo pipefail
+          if [ ! -d pages/.git ]; then
+            echo "gh-pages branch not yet present — initializing fresh."
+            rm -rf pages
+            mkdir pages
+            cd pages
+            git init -b gh-pages
+            git remote add origin "https://github.com/${{ github.repository }}.git"
+          fi
+
+      - name: Install repo tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            dpkg-dev apt-utils gnupg
+
+      - name: Download .deb artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: deb-amd64
+          path: incoming
+
+      - name: Import GPG signing key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.APT_REPO_GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.APT_REPO_GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GPG_PRIVATE_KEY:-}" ]; then
+            echo "::error::Secret APT_REPO_GPG_PRIVATE_KEY is not set. See docs/APT_REPO_SETUP.md."
+            exit 1
+          fi
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+          echo "use-agent" > ~/.gnupg/gpg.conf
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+          printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --import
+          GPG_KEY_ID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/ {print $5; exit}')
+          if [ -z "$GPG_KEY_ID" ]; then
+            echo "::error::No secret key found after import."
+            exit 1
+          fi
+          echo "GPG_KEY_ID=$GPG_KEY_ID" >> "$GITHUB_ENV"
+          # Export the public key for end users.
+          gpg --armor --export "$GPG_KEY_ID" > pages/apt2brew.gpg.key
+          echo "Imported key $GPG_KEY_ID"
+
+      - name: Add new .deb to pool
+        run: |
+          set -euo pipefail
+          deb=$(ls incoming/apt2brew_*_amd64.deb | head -n1)
+          dest="pages/pool/main/a/apt2brew"
+          mkdir -p "$dest"
+          cp "$deb" "$dest/"
+          echo "Pool now contains:"
+          ls -la "$dest"
+
+      - name: Generate Packages + Release metadata
+        env:
+          GPG_PASSPHRASE: ${{ secrets.APT_REPO_GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          cd pages
+
+          # Layout: dists/stable/main/binary-amd64/
+          arch=amd64
+          dist=stable
+          comp=main
+          target_dir="dists/${dist}/${comp}/binary-${arch}"
+          mkdir -p "$target_dir"
+
+          # Scan the entire pool — keeps every previously released version
+          # available for downgrades / reproducible installs.
+          dpkg-scanpackages --arch "$arch" pool/ > "$target_dir/Packages"
+          gzip -9c "$target_dir/Packages" > "$target_dir/Packages.gz"
+
+          # Per-component Release file (referenced from the top-level Release).
+          cat > "$target_dir/Release" <<EOF
+          Archive: ${dist}
+          Component: ${comp}
+          Origin: apt2brew
+          Label: apt2brew
+          Architecture: ${arch}
+          EOF
+
+          # Top-level Release with hashes.
+          release_file="dists/${dist}/Release"
+          cat > "$release_file" <<EOF
+          Origin: apt2brew
+          Label: apt2brew
+          Suite: ${dist}
+          Codename: ${dist}
+          Version: 1.0
+          Architectures: ${arch}
+          Components: ${comp}
+          Description: apt2brew APT repository — built from github.com/${{ github.repository }}
+          Date: $(date -u +"%a, %d %b %Y %H:%M:%S UTC")
+          EOF
+          ( cd "dists/${dist}" && apt-ftparchive release . >> Release.tmp )
+          # apt-ftparchive writes the hash sections; concatenate.
+          cat "dists/${dist}/Release.tmp" >> "$release_file"
+          rm "dists/${dist}/Release.tmp"
+
+          # Sign Release → Release.gpg (detached) and InRelease (clearsigned).
+          if [ -n "${GPG_PASSPHRASE:-}" ]; then
+            passphrase_args=(--batch --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE")
+          else
+            passphrase_args=(--batch --pinentry-mode loopback)
+          fi
+
+          gpg "${passphrase_args[@]}" --default-key "$GPG_KEY_ID" \
+              -abs -o "dists/${dist}/Release.gpg" "$release_file"
+          gpg "${passphrase_args[@]}" --default-key "$GPG_KEY_ID" \
+              --clearsign -o "dists/${dist}/InRelease" "$release_file"
+
+          echo "Repo tree:"
+          find . -maxdepth 5 -type f | sort
+
+      - name: Write index.html for the Pages root
+        run: |
+          set -euo pipefail
+          repo_url="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+          cat > pages/index.html <<EOF
+          <!doctype html>
+          <html><head><meta charset="utf-8"><title>apt2brew APT repo</title>
+          <style>
+            body { font-family: ui-monospace, Menlo, monospace; max-width: 720px;
+                   margin: 60px auto; padding: 0 20px; color: #1a1a1a;
+                   line-height: 1.6; background: #fafafa; }
+            h1 { letter-spacing: -0.02em; }
+            pre { background: #111; color: #eee; padding: 14px 16px;
+                  border-radius: 6px; overflow-x: auto; }
+            a { color: #0a66c2; }
+          </style></head><body>
+          <h1>apt2brew APT repository</h1>
+          <p>Add this repository to install <strong>apt2brew</strong> via APT and
+          receive updates with <code>apt update</code>.</p>
+          <pre>sudo install -m 0755 -d /etc/apt/keyrings
+          curl -fsSL ${repo_url}/apt2brew.gpg.key \\
+            | sudo gpg --dearmor -o /etc/apt/keyrings/apt2brew.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/apt2brew.gpg] ${repo_url} stable main" \\
+            | sudo tee /etc/apt/sources.list.d/apt2brew.list
+          sudo apt update
+          sudo apt install apt2brew</pre>
+          <p>Source: <a href="https://github.com/${{ github.repository }}">github.com/${{ github.repository }}</a></p>
+          </body></html>
+          EOF
+
+      - name: Commit and push gh-pages
+        run: |
+          set -euo pipefail
+          cd pages
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to publish."
+            exit 0
+          fi
+          git commit -m "Publish ${{ needs.build-deb.outputs.deb_filename }}"
+          # Use a token-authenticated remote so we can push from CI.
+          git remote set-url origin \
+            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          git push origin gh-pages
+
+  github-release:
+    name: Attach .deb to GitHub Release
+    needs: build-deb
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download .deb artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: deb-amd64
+          path: artifacts
+
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/apt2brew_*_amd64.deb
+          generate_release_notes: true
+          fail_on_unmatched_files: true

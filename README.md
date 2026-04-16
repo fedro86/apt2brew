@@ -20,7 +20,23 @@ APT packages are system-wide and require `sudo`. Homebrew installs to user-space
 cargo install --path .
 ```
 
-### As .deb package
+### As .deb package (recommended — auto-updates via apt)
+
+Add the apt2brew APT repository so `apt update` will pick up future releases:
+
+```bash
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://fedro86.github.io/apt2brew/apt2brew.gpg.key \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/apt2brew.gpg
+echo "deb [signed-by=/etc/apt/keyrings/apt2brew.gpg] https://fedro86.github.io/apt2brew stable main" \
+  | sudo tee /etc/apt/sources.list.d/apt2brew.list
+sudo apt update
+sudo apt install apt2brew
+```
+
+To uninstall: `sudo apt remove apt2brew && sudo rm /etc/apt/sources.list.d/apt2brew.list /etc/apt/keyrings/apt2brew.gpg`.
+
+### As .deb package (build locally)
 
 ```bash
 cargo deb
