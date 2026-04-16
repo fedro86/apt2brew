@@ -1,0 +1,49 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Origin: apt2brew
+Label: apt2brew
+Suite: stable
+Codename: stable
+Version: 1.0
+Architectures: amd64
+Components: main
+Description: apt2brew APT repository — built from github.com/fedro86/apt2brew
+Date: Thu, 16 Apr 2026 20:34:02 UTC
+Date: Thu, 16 Apr 2026 20:34:02 +0000
+MD5Sum:
+ 156d2312782703814dcc90110551d7ef              231 Release
+ eed26e9cad51d76acbd4963c63193c54             7326 main/binary-amd64/Packages
+ 7f3b2befea50d2f559c7408ce75e6142             3330 main/binary-amd64/Packages.gz
+ f2fd02a75875c2eb9a0f90e235cef40d               85 main/binary-amd64/Release
+SHA1:
+ 9640cc36ebd0ecfd155053f6230c161aacb869c3              231 Release
+ 51a04da6b89ff8c64906fb389162209437659af3             7326 main/binary-amd64/Packages
+ 61d1123157c6af4ec550ea0d3fcea2ea68e31584             3330 main/binary-amd64/Packages.gz
+ 1de6f6efb7eefa592cebea31b2e199fc42754463               85 main/binary-amd64/Release
+SHA256:
+ 710e03ba0a2166cc411496f1046d2e20fb2aa7400cada00947634c3972733863              231 Release
+ f4dbf5877f20969975c7a3d1532bd51512fb9c175f90a12c69a39012e5ae87d1             7326 main/binary-amd64/Packages
+ 48d5292c360a7eabd43e145b7b777985ad0cb0c6c7afc9de271bc074445017e5             3330 main/binary-amd64/Packages.gz
+ 8a445519211129c9e9f51bae965268b2f1dfbb8b0dae5c1312487bbf20bd3c60               85 main/binary-amd64/Release
+SHA512:
+ 68954d3a75ebef4c954cc84a9fa731252c2aa11c31a83ff3ecc4f16b3e1ac0b17f8b292cf79f136b3f18cfdd596fa2deecbeef686476b2cc0bac28ae33172f01              231 Release
+ 6c605d13e2502a704a577b82868c7158df11212dfdceaefeb6b5833e0beb721bd9e9bd19f3bc38784e998aa10c4c7799e62f18c418b6dea2deb8ade3ddbf5c95             7326 main/binary-amd64/Packages
+ bad68c8478ccd5268031b973bd2d06785c3dfa5606b73cd90c171e727ac3a20832cf5dfd64bc9e4283ff2e1186d7700f1d3ae7d615185952c3fdae025061ac7b             3330 main/binary-amd64/Packages.gz
+ 9f33af61f386924ff130f6a4ba7e8f763283d9c5b9718fb99b707e473063d8f011c0c8237b92f83d8e0a403270d18025cc3e6bb8166fd5f18bbbb80cbfd1a856               85 main/binary-amd64/Release
+-----BEGIN PGP SIGNATURE-----
+
+iQIzBAEBCgAdFiEEEo+oDj0Oo39koqlhlz1QKFVNoYoFAmnhR7oACgkQlz1QKFVN
+oYorVQ/+PVf9xP/c9AFIOouGPwBVOjkAA3O2ILF07g1mj58lyD29EkmoRogLMI8p
+nSj1dZ+om1h3mGah6dDQYsE8Z0RN9r29i+jhC7GJrZv3BX3gyMj0YcvndHxebnJ4
+NNAVoJJxCit0sT4FASiHL+USmOM8iq5xtCu7IY2UfMfg29cE0A+42bgK3PkFgiNn
+eXnRw1dydCsaG6E3hFoPzvHlT0Qz6BVwtRV/EBFqs5ouYUklIXpNVsupusNySpnd
+rd2YD2DYn2z8IFaUjKD4JKez3kh0UgIqHEi6M2ECyEBNCwAEXgb8BtaxzR1NG0aL
+Z3myoXP8zXiF4eajaRxsqLGCE4hQvEKLSJZGBjSpP/p6uSlA8UjmMsrBTOjcHndL
+s3XpGZU51BPKfzJ0xUT1PQXcjE5PK+ahTJkt3Wg2PQ8JGGC5Kfbu58fWnfEsYpx/
+qD4J81EyyzNGhctWMClfHDQK9JlhC1Uwm0QREmgxxwCOiTKmlS/lc27ocRTlrphZ
+I+eYgmk/+3ie7MXcFZf5TKM+JjLRudbWIKKBrnUvkiXNRgGWdC1qou+aMaJpsW1s
+2NXzLJkA4KapXZdkbpJjRH5lZ1YPa2UzTyUHK5uKLj0Ljj2ggnRlt7h6si/oGIrp
+GrgAIIzzqXx9jrRVTXLOWdiPdSJIb/fadediam9XngynnThC2to=
+=5yCf
+-----END PGP SIGNATURE-----

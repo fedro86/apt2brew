@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>apt2brew — migrate APT and snap packages to Homebrew on Linux</title>
+<style>
+  :root {
+    --bg: #0b0f17;
+    --bg-soft: #131a26;
+    --bg-card: #1a2230;
+    --fg: #e6edf3;
+    --fg-dim: #94a3b8;
+    --fg-mute: #64748b;
+    --accent: #41ff8a;
+    --accent-soft: rgba(65, 255, 138, 0.12);
+    --warn: #ff5f5f;
+    --border: #1f2a3a;
+    --term-bg: #000000;
+    --term-green: #00ff66;
+    --term-amber: #ffb454;
+    --term-red: #ff5555;
+    --term-cyan: #62c8ff;
+    --term-fg: #c9d1d9;
+    --term-dim: #5a6677;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "Helvetica Neue", sans-serif;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(circle at 20% 0%, rgba(65, 255, 138, 0.06), transparent 40%),
+      radial-gradient(circle at 80% 30%, rgba(98, 200, 255, 0.05), transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+  /* ---- Nav ---- */
+  nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 22px 0;
+  }
+  .brand {
+    font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: -0.01em;
+  }
+  .brand .ticker { color: var(--accent); }
+  nav ul { display: flex; gap: 28px; list-style: none; padding: 0; margin: 0; }
+  nav a {
+    color: var(--fg-dim);
+    text-decoration: none;
+    font-size: 14px;
+    transition: color .15s;
+  }
+  nav a:hover { color: var(--fg); }
+
+  /* ---- Hero ---- */
+  .hero { padding: 60px 0 40px; text-align: center; }
+  .hero .eyebrow {
+    display: inline-block;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg-soft);
+    color: var(--accent);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 12px;
+    margin-bottom: 24px;
+    text-decoration: none;
+    transition: border-color .15s, background .15s;
+  }
+  .hero a.eyebrow:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .hero h1 {
+    font-size: clamp(40px, 6vw, 64px);
+    line-height: 1.05;
+    margin: 0 0 18px;
+    letter-spacing: -0.025em;
+    font-weight: 700;
+  }
+  .hero h1 .accent {
+    background: linear-gradient(120deg, var(--accent), #62c8ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .hero p.lede {
+    font-size: 19px;
+    color: var(--fg-dim);
+    max-width: 640px;
+    margin: 0 auto 32px;
+  }
+  .cta-row { display: inline-flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 15px;
+    transition: transform .12s, background .15s;
+  }
+  .cta.primary {
+    background: var(--accent);
+    color: #002b15;
+  }
+  .cta.primary:hover { transform: translateY(-1px); background: #5cffa1; }
+  .cta.ghost {
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    color: var(--fg);
+  }
+  .cta.ghost:hover { border-color: var(--accent); }
+  .cta code {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 13px;
+    color: var(--accent);
+  }
+
+  /* ---- Terminal ---- */
+  .terminal-frame {
+    margin: 60px auto 80px;
+    max-width: 1040px;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow:
+      0 30px 60px rgba(0,0,0,0.5),
+      0 0 0 1px rgba(255,255,255,0.05),
+      0 0 80px rgba(65, 255, 138, 0.06);
+    background: var(--term-bg);
+  }
+  .terminal-titlebar {
+    background: linear-gradient(180deg, #303030 0%, #2a2a2a 100%);
+    color: #d6d6d6;
+    display: grid;
+    grid-template-columns: 80px 1fr 120px;
+    align-items: center;
+    padding: 0 12px;
+    height: 36px;
+    font-size: 13px;
+    border-bottom: 1px solid #1c1c1c;
+  }
+  .titlebar-controls { display: flex; gap: 8px; align-items: center; }
+  .ctl-btn {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 1px solid rgba(0,0,0,0.2);
+  }
+  .ctl-btn.search { background: #4a4a4a; }
+  .titlebar-title { text-align: center; font-family: "Ubuntu", -apple-system, sans-serif; }
+  .titlebar-window { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+  .win-btn {
+    width: 22px; height: 22px;
+    background: #4a4a4a;
+    border-radius: 4px;
+    display: inline-block;
+    position: relative;
+  }
+  .win-btn.close { background: #cc4444; }
+
+  .terminal-body {
+    background: var(--term-bg);
+    color: var(--term-fg);
+    font-family: "JetBrains Mono", "SF Mono", Menlo, "DejaVu Sans Mono", monospace;
+    font-size: 13.5px;
+    line-height: 1.5;
+    padding: 16px 18px 14px;
+    overflow-x: auto;
+  }
+
+  /* TUI boxes: real CSS borders so columns can't drift */
+  .tui-box {
+    position: relative;
+    border: 1px solid var(--term-green);
+    border-radius: 2px;
+    padding: 8px 12px 10px;
+    margin-bottom: 6px;
+  }
+  .tui-box .legend {
+    position: absolute;
+    top: -0.65em;
+    left: 12px;
+    background: var(--term-bg);
+    padding: 0 6px;
+    color: var(--term-amber);
+    font-weight: 700;
+    font-size: 12.5px;
+    line-height: 1;
+  }
+
+  .tui-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    align-items: center;
+    color: var(--term-green);
+    font-size: 13.5px;
+  }
+  .tui-stats > .cell {
+    padding: 0 14px;
+    border-right: 1px solid var(--term-green);
+  }
+  .tui-stats > .cell:first-child { padding-left: 4px; }
+  .tui-stats > .cell:last-child { border-right: none; padding-right: 4px; }
+  .tui-stats .label { color: var(--term-amber); }
+
+  .tui-table .row {
+    display: grid;
+    grid-template-columns: 38px minmax(150px, 1.2fr) minmax(140px, 1fr) minmax(110px, 1fr) 70px minmax(150px, 1.4fr);
+    gap: 14px;
+    align-items: baseline;
+    padding: 1px 4px;
+  }
+  .tui-table .head .col {
+    color: var(--term-amber);
+    font-weight: 700;
+    padding-bottom: 6px;
+  }
+  .tui-table .col { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tui-table .col.check { color: var(--term-green); font-weight: 700; }
+  .tui-table .col.check.empty { color: var(--term-dim); }
+  .tui-table .col.pkg { color: #b6c3d4; }
+  .tui-table .col.pkg.selected { color: var(--term-green); font-weight: 700; }
+  .tui-table .col.pkg.dim { color: var(--term-dim); }
+  .tui-table .col.ver { color: var(--term-green); }
+  .tui-table .col.brew { color: var(--term-cyan); }
+  .tui-table .col.brew.dash { color: var(--term-dim); }
+  .tui-table .col.risk.low { color: var(--term-green); font-weight: 700; }
+  .tui-table .col.risk.high { color: var(--term-red); font-weight: 700; }
+  .tui-table .col.risk.na { color: var(--term-dim); }
+  .tui-table .col.reason { color: var(--term-fg); }
+  .tui-table .col.reason.high { color: var(--term-red); }
+
+  .tui-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    align-items: center;
+    color: var(--term-fg);
+    font-size: 13px;
+    padding: 4px 4px;
+  }
+  .tui-footer .key {
+    background: #2c3340;
+    color: #f0f4fa;
+    padding: 1px 7px;
+    border-radius: 3px;
+    margin-right: 4px;
+    font-weight: 700;
+  }
+
+  /* ---- Features ---- */
+  .section { padding: 60px 0; }
+  .section h2 {
+    font-size: 32px;
+    letter-spacing: -0.02em;
+    margin: 0 0 12px;
+    text-align: center;
+  }
+  .section p.section-sub {
+    text-align: center;
+    color: var(--fg-dim);
+    max-width: 620px;
+    margin: 0 auto 48px;
+  }
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 18px;
+  }
+  .feature {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    transition: border-color .15s, transform .15s;
+  }
+  .feature:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .feature .icon {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--accent);
+    font-size: 14px;
+    margin-bottom: 12px;
+    letter-spacing: 0.05em;
+  }
+  .feature h3 { margin: 0 0 8px; font-size: 17px; }
+  .feature p { margin: 0; color: var(--fg-dim); font-size: 14px; }
+
+  /* ---- Install / Code ---- */
+  .install-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  .code-card {
+    background: #0e1420;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .code-card .head {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--bg-soft);
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--fg-dim);
+    font-family: "JetBrains Mono", monospace;
+  }
+  .code-card pre {
+    margin: 0;
+    padding: 16px;
+    font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    font-size: 13.5px;
+    color: var(--fg);
+    overflow-x: auto;
+  }
+  .code-card pre .prompt { color: var(--accent); user-select: none; }
+  .code-card pre .comment { color: var(--fg-mute); }
+
+  /* ---- Footer ---- */
+  footer {
+    padding: 40px 0 60px;
+    border-top: 1px solid var(--border);
+    margin-top: 80px;
+    text-align: center;
+    color: var(--fg-mute);
+    font-size: 14px;
+  }
+  footer a { color: var(--fg-dim); text-decoration: none; }
+  footer a:hover { color: var(--accent); }
+
+  @media (max-width: 720px) {
+    .terminal-body { font-size: 11px; }
+    nav ul { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <nav>
+    <div class="brand">apt2brew<span class="ticker">_</span></div>
+    <ul>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#install">Install</a></li>
+      <li><a href="#usage">Usage</a></li>
+      <li><a href="https://github.com/fedro86/apt2brew" target="_blank" rel="noopener">GitHub</a></li>
+    </ul>
+  </nav>
+
+  <header class="hero">
+    <!--
+      TODO: wire this version pill to the latest published tag.
+      Plan: have the release workflow emit a small JSON file (e.g.
+      /version.json with { "tag": "v0.2.1", "url": "https://github.com/.../releases/tag/v0.2.1" })
+      and replace this static span with a <a id="version-pill"> populated by a
+      tiny inline fetch() at page load. Until the first tag exists this stays
+      static.
+    -->
+    <a class="eyebrow" href="https://github.com/fedro86/apt2brew/releases" target="_blank" rel="noopener" id="version-pill">v0.1.0 — APT &amp; snap → Homebrew, the safe way</a>
+    <h1>Move user-space tools<br>out of <span class="accent">apt</span> and into <span class="accent">brew</span>.</h1>
+    <p class="lede">
+      apt2brew scans your installed APT and snap packages, finds the Homebrew equivalent,
+      and migrates only the ones that are safe to move — with a verified install and an
+      incremental rollback script before anything is removed.
+    </p>
+    <div class="cta-row">
+      <a class="cta primary" href="#install">Get started</a>
+      <a class="cta ghost" href="https://github.com/fedro86/apt2brew" target="_blank" rel="noopener">
+        <code>github.com/fedro86/apt2brew</code>
+      </a>
+    </div>
+  </header>
+</div>
+
+<!-- ============== TERMINAL MOCK ============== -->
+<div class="wrap">
+  <div class="terminal-frame">
+    <div class="terminal-titlebar">
+      <div class="titlebar-controls">
+        <span class="ctl-btn search" title="search"></span>
+      </div>
+      <div class="titlebar-title">cargo run -- migrate</div>
+      <div class="titlebar-window">
+        <span class="win-btn"></span>
+        <span class="win-btn"></span>
+        <span class="win-btn close"></span>
+      </div>
+    </div>
+
+    <div class="terminal-body">
+
+      <div class="tui-box">
+        <div class="legend">Scan Results</div>
+        <div class="tui-stats">
+          <div class="cell"><span class="label">apt2brew</span></div>
+          <div class="cell">10 selected</div>
+          <div class="cell">14 visible / 247 total</div>
+          <div class="cell"><span class="label">Filter:</span> All</div>
+        </div>
+      </div>
+
+      <div class="tui-box tui-table">
+        <div class="row head">
+          <div class="col"></div>
+          <div class="col">Package</div>
+          <div class="col">APT Ver</div>
+          <div class="col">Brew</div>
+          <div class="col">Risk</div>
+          <div class="col">Reason</div>
+        </div>
+
+        <div class="row">
+          <div class="col check">[x]</div>
+          <div class="col pkg selected">bat</div>
+          <div class="col ver">0.24.0-1</div>
+          <div class="col brew">bat</div>
+          <div class="col risk low">LOW</div>
+          <div class="col reason">user-space tool</div>
+        </div>
+        <div class="row">
+          <div class="col check">[x]</div>
+          <div class="col pkg selected">fd-find</div>
+          <div class="col ver">9.0.0-1</div>
+          <div class="col brew">fd</div>
+          <div class="col risk low">LOW</div>
+          <div class="col reason">user-space tool</div>
+        </div>
+        <div class="row">
+          <div class="col check">[x]</div>
+          <div class="col pkg selected">fzf</div>
+          <div class="col ver">0.46.1-1</div>
+          <div class="col brew">fzf</div>
+          <div class="col risk low">LOW</div>
+          <div class="col reason">user-space tool</div>
+        </div>
+        <div class="row">
+          <div class="col check">[x]</div>
+          <div class="col pkg selected">htop</div>
+          <div class="col ver">3.3.0-2</div>
+          <div class="col brew">htop</div>
+          <div class="col risk low">LOW</div>
+          <div class="col reason">user-space tool</div>
+        </div>
+        <div class="row">
+          <div class="col check">[x]</div>
+          <div class="col pkg selected">jq</div>
+          <div class="col ver">1.7.1-3build1</div>
+          <div class="col brew">jq</div>
+          <div class="col risk low">LOW</div>
+          <div class="col reason">user-space tool</div>
+        </div>
+        <div class="row">
+          <div class="col check">[x]</div>
+          <div class="col pkg selected">neovim</div>
+          <div class="col ver">0.9.5-7</div>
+          <div class="col brew">neovim</div>
+          <div class="col risk low">LOW</div>
+          <div class="col reason">user-space tool</div>
+        </div>
+        <div class="row">
+          <div class="col check">[x]</div>
+          <div class="col pkg selected">ripgrep</div>
+          <div class="col ver">14.1.0-1</div>
+          <div class="col brew">ripgrep</div>
+          <div class="col risk low">LOW</div>
+          <div class="col reason">user-space tool</div>
+        </div>
+        <div class="row">
+          <div class="col check">[x]</div>
+          <div class="col pkg selected">tmux</div>
+          <div class="col ver">3.4-1ubuntu1</div>
+          <div class="col brew">tmux</div>
+          <div class="col risk low">LOW</div>
+          <div class="col reason">user-space tool</div>
+        </div>
+        <div class="row">
+          <div class="col check">[x]</div>
+          <div class="col pkg selected">tree</div>
+          <div class="col ver">2.1.1-2build1</div>
+          <div class="col brew">tree</div>
+          <div class="col risk low">LOW</div>
+          <div class="col reason">user-space tool</div>
+        </div>
+        <div class="row">
+          <div class="col check">[x]</div>
+          <div class="col pkg selected">yq</div>
+          <div class="col ver">4.40.5-1</div>
+          <div class="col brew">yq</div>
+          <div class="col risk low">LOW</div>
+          <div class="col reason">user-space tool</div>
+        </div>
+        <div class="row">
+          <div class="col check empty">[ ]</div>
+          <div class="col pkg">curl</div>
+          <div class="col ver">8.5.0-2ubuntu1</div>
+          <div class="col brew">curl</div>
+          <div class="col risk high">HIGH</div>
+          <div class="col reason high">system-critical</div>
+        </div>
+        <div class="row">
+          <div class="col check empty">[ ]</div>
+          <div class="col pkg">gcc</div>
+          <div class="col ver">4:13.2.0-7ubu...</div>
+          <div class="col brew">gcc</div>
+          <div class="col risk high">HIGH</div>
+          <div class="col reason high">system-critical</div>
+        </div>
+        <div class="row">
+          <div class="col check empty"></div>
+          <div class="col pkg dim">libssl3</div>
+          <div class="col ver">3.0.13-0ubuntu</div>
+          <div class="col brew dash">-</div>
+          <div class="col risk na">N/A</div>
+          <div class="col reason">library</div>
+        </div>
+        <div class="row">
+          <div class="col check empty"></div>
+          <div class="col pkg dim">openssh-server</div>
+          <div class="col ver">1:9.6p1-3ubun...</div>
+          <div class="col brew dash">-</div>
+          <div class="col risk na">N/A</div>
+          <div class="col reason">installs systemd</div>
+        </div>
+      </div>
+
+      <div class="tui-box">
+        <div class="tui-footer">
+          <span><span class="key">j/k</span>move</span>
+          <span><span class="key">Space</span>toggle</span>
+          <span><span class="key">a</span>all</span>
+          <span><span class="key">n</span>none</span>
+          <span><span class="key">Tab</span>filter</span>
+          <span><span class="key">/</span>search</span>
+          <span><span class="key">Enter</span>confirm</span>
+          <span><span class="key">q</span>quit</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ============== FEATURES ============== -->
+<div class="wrap">
+  <section id="features" class="section">
+    <h2>Built so a wrong move can't ruin your day</h2>
+    <p class="section-sub">
+      Every destructive step is gated, simulated, and reversible. The defaults are the safe ones.
+    </p>
+
+    <div class="features">
+      <div class="feature">
+        <div class="icon">[risk]</div>
+        <h3>8-rule risk engine</h3>
+        <p>Daemons, sbin binaries, libraries, essential dependencies and high reverse-dep packages are flagged HIGH and deselected by default. User-space tools are pre-selected.</p>
+      </div>
+
+      <div class="feature">
+        <div class="icon">[verify]</div>
+        <h3>Install verified before remove</h3>
+        <p>Each package is installed via brew and checked with <code>brew list</code> before APT removal even runs. If brew already has it, the install step is skipped and you're told.</p>
+      </div>
+
+      <div class="feature">
+        <div class="icon">[cascade]</div>
+        <h3>Cascade-safe APT removal</h3>
+        <p>Runs <code>apt-get -s remove</code> first. If removing your selection would also pull in unrequested packages, the migration aborts and reports exactly which ones.</p>
+      </div>
+
+      <div class="feature">
+        <div class="icon">[rollback]</div>
+        <h3>Incremental rollback script</h3>
+        <p>Reserved before phase one, rewritten after every successful brew install. A Ctrl-C or panic mid-migration leaves an on-disk script matching your real brew state.</p>
+      </div>
+
+      <div class="feature">
+        <div class="icon">[argv]</div>
+        <h3>Argv-hardened by construction</h3>
+        <p>Package names validated against a strict character set, then passed after <code>--</code> end-of-options markers at every <code>brew</code>/<code>apt</code> call site.</p>
+      </div>
+
+      <div class="feature">
+        <div class="icon">[ux]</div>
+        <h3>Sudo only when needed</h3>
+        <p>Asked for once, just before removal. Batched into a single call. The TUI restores your terminal even on panic via an RAII guard.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== INSTALL ============== -->
+  <section id="install" class="section">
+    <h2>Install</h2>
+    <p class="section-sub">Linux with APT, plus <a href="https://brew.sh" target="_blank" rel="noopener" style="color:var(--accent)">Homebrew for Linux</a> in your PATH.</p>
+
+    <div class="install-grid">
+      <div class="code-card">
+        <div class="head"><span>Recommended — APT repo (auto-updates with <code>apt update</code>)</span><span>apt</span></div>
+<pre><span class="prompt">$</span> sudo install -m 0755 -d /etc/apt/keyrings
+<span class="prompt">$</span> curl -fsSL https://fedro86.github.io/apt2brew/apt2brew.gpg.key \
+    | sudo gpg --dearmor -o /etc/apt/keyrings/apt2brew.gpg
+<span class="prompt">$</span> echo "deb [signed-by=/etc/apt/keyrings/apt2brew.gpg] https://fedro86.github.io/apt2brew stable main" \
+    | sudo tee /etc/apt/sources.list.d/apt2brew.list
+<span class="prompt">$</span> sudo apt update
+<span class="prompt">$</span> sudo apt install apt2brew</pre>
+      </div>
+
+      <div class="code-card">
+        <div class="head"><span>From source</span><span>cargo</span></div>
+<pre><span class="prompt">$</span> git clone https://github.com/fedro86/apt2brew
+<span class="prompt">$</span> cd apt2brew
+<span class="prompt">$</span> cargo install --path .</pre>
+      </div>
+
+      <div class="code-card">
+        <div class="head"><span>Build the .deb locally</span><span>cargo-deb</span></div>
+<pre><span class="prompt">$</span> cargo deb
+<span class="prompt">$</span> sudo dpkg -i target/debian/apt2brew_*.deb</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============== USAGE ============== -->
+  <section id="usage" class="section">
+    <h2>Three commands. That's the whole tool.</h2>
+    <p class="section-sub">Read-only scan, interactive migrate, and a TUI rollback. Each has a non-interactive mode for scripts.</p>
+
+    <div class="install-grid">
+      <div class="code-card">
+        <div class="head"><span>Scan (read-only)</span></div>
+<pre><span class="prompt">$</span> apt2brew scan
+<span class="comment"># prints a table: package | apt ver | brew | risk | reason</span></pre>
+      </div>
+
+      <div class="code-card">
+        <div class="head"><span>Migrate</span></div>
+<pre><span class="prompt">$</span> apt2brew migrate            <span class="comment"># interactive TUI</span>
+<span class="prompt">$</span> apt2brew migrate --dry-run  <span class="comment"># show what would happen</span>
+<span class="prompt">$</span> apt2brew migrate --yes      <span class="comment"># execute with pre-selected packages</span></pre>
+      </div>
+
+      <div class="code-card">
+        <div class="head"><span>Rollback</span></div>
+<pre><span class="prompt">$</span> apt2brew rollback                  <span class="comment"># pick from a TUI</span>
+<span class="prompt">$</span> apt2brew rollback --yes            <span class="comment"># revert the latest run</span>
+<span class="prompt">$</span> apt2brew rollback --package fd     <span class="comment"># revert one package</span></pre>
+      </div>
+    </div>
+  </section>
+</div>
+
+<footer>
+  <div class="wrap">
+    apt2brew is MIT-licensed. Built in Rust.
+    &nbsp;·&nbsp;
+    <a href="https://github.com/fedro86/apt2brew">github.com/fedro86/apt2brew</a>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,5 @@
+Archive: stable
+Component: main
+Origin: apt2brew
+Label: apt2brew
+Architecture: amd64
