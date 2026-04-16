@@ -470,8 +470,17 @@
     /* ---- Install / Code ---- */
     .install-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 20px;
+      max-width: 980px;
+      margin: 0 auto;
+    }
+
+    .commands-stack {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 18px;
+      max-width: 980px;
       margin: 0 auto;
     }
 
@@ -933,7 +942,7 @@
     <h2>Commands</h2>
     <p class="section-sub">Each command has a non-interactive mode for scripts.</p>
 
-    <div class="install-grid">
+    <div class="commands-stack">
       <div class="code-card">
         <div class="head"><span>scan</span><span>read-only</span></div>
 <pre><span class="prompt">$</span> apt2brew scan
