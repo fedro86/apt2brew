@@ -113,7 +113,10 @@ APT/snap names are matched to brew formulae through:
 ### Safety guarantees
 
 - No APT/snap removal without a verified brew installation (`brew list <formula>`)
-- Rollback script generated before any system modification
+- Rollback script reserved before any system modification, then rewritten after every successful brew install -- a Ctrl-C or panic mid-migration leaves an on-disk rollback that matches actual brew state
+- `apt remove` is simulated first (`apt-get -s remove`); the migration aborts and reports the extras if removal would cascade beyond the packages you selected (e.g. picking a library other packages depend on)
+- Pre-existing brew copies are detected -- the install step is skipped and the result is annotated `(brew copy was pre-existing -- not refreshed)` so you know your brew copy wasn't rebuilt
+- All package names are validated against a strict character set before reaching `brew`/`apt`/`sudo` argv, with `--` end-of-options markers at every destructive call site
 - Snap packages are correctly separated from APT for both removal and rollback
 - Sudo is requested only when needed (just before removal), not at startup
 
