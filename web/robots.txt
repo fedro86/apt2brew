@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://apt2brew.federicoconticello.com/sitemap.xml
+Sitemap: https://apt2brew.fedro.me/sitemap.xml

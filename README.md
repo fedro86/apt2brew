@@ -26,9 +26,9 @@ Add the apt2brew APT repository so `apt update` will pick up future releases:
 
 ```bash
 sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://apt2brew.federicoconticello.com/apt2brew.gpg.key \
+curl -fsSL https://apt2brew.fedro.me/apt2brew.gpg.key \
   | sudo gpg --dearmor -o /etc/apt/keyrings/apt2brew.gpg
-echo "deb [signed-by=/etc/apt/keyrings/apt2brew.gpg] https://apt2brew.federicoconticello.com stable main" \
+echo "deb [signed-by=/etc/apt/keyrings/apt2brew.gpg] https://apt2brew.fedro.me stable main" \
   | sudo tee /etc/apt/sources.list.d/apt2brew.list
 sudo apt update
 sudo apt install apt2brew

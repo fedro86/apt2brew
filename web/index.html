@@ -6,11 +6,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>apt2brew — migrate APT and snap packages to Homebrew on Linux</title>
   <meta name="description" content="Rust CLI to safely move user-space tools from APT and snap to Homebrew on Linux. Risk-classified scan, install verified before remove, cascade-safe APT removal, incremental rollback.">
-  <link rel="canonical" href="https://apt2brew.federicoconticello.com/">
+  <link rel="canonical" href="https://apt2brew.fedro.me/">
 
   <!-- Open Graph / social cards -->
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://apt2brew.federicoconticello.com/">
+  <meta property="og:url" content="https://apt2brew.fedro.me/">
   <meta property="og:title" content="apt2brew — APT &amp; snap → Homebrew on Linux, the safe way">
   <meta property="og:description" content="Rust CLI to safely move user-space tools from APT and snap to Homebrew on Linux. Cascade-safe removal, incremental rollback, signed APT repo for distribution.">
   <meta property="og:site_name" content="apt2brew">
@@ -941,9 +941,9 @@
       <div class="code-card">
         <div class="head"><span>APT repo (recommended)</span><span>apt</span></div>
         <pre><span class="prompt">$</span> sudo install -m 0755 -d /etc/apt/keyrings
-<span class="prompt">$</span> curl -fsSL https://apt2brew.federicoconticello.com/apt2brew.gpg.key \
+<span class="prompt">$</span> curl -fsSL https://apt2brew.fedro.me/apt2brew.gpg.key \
     | sudo gpg --dearmor -o /etc/apt/keyrings/apt2brew.gpg
-<span class="prompt">$</span> echo "deb [signed-by=/etc/apt/keyrings/apt2brew.gpg] https://apt2brew.federicoconticello.com stable main" \
+<span class="prompt">$</span> echo "deb [signed-by=/etc/apt/keyrings/apt2brew.gpg] https://apt2brew.fedro.me stable main" \
     | sudo tee /etc/apt/sources.list.d/apt2brew.list
 <span class="prompt">$</span> sudo apt update
 <span class="prompt">$</span> sudo apt install apt2brew</pre>
